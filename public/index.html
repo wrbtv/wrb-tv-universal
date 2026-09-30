@@ -4855,6 +4855,8 @@
     window.addEventListener('DOMContentLoaded', () => {
       syncAppNativeFullscreen();
       loadDeviceId();
+      // Registra o dispositivo no WRB-TV Business mesmo antes do login.
+      setTimeout(() => wrbBusinessHeartbeat(), 250);
       const saved = localStorage.getItem('wrbtv_session');
       if (saved) {
         try {

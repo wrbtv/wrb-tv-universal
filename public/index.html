@@ -4632,6 +4632,21 @@
       ctrlTimer = setTimeout(hideControls, 300);
     });
 
+    // FullPlayer: o mouse pode estar nos cantos/áreas pretas fora do vídeo.
+    // O cabeçalho flutuante deve aparecer mesmo assim, mas somente no FullPlayer.
+    $('player-overlay').addEventListener('mousemove', (e) => {
+      if (!$('player-overlay')?.classList.contains('show')) return;
+      if (playerContainerEl?.classList.contains('mini-mode')) return;
+
+      const header = $('playerFloatingHeader');
+      if (!header) return;
+
+      if (e.clientY <= 140) {
+        header.classList.add('visible');
+        showControls();
+      }
+    });
+
     // Double-click no vídeo para entrar/sair de tela cheia estilo cinema
     $('videoViewport').addEventListener('dblclick', (e) => {
       if (e.target.closest('#customControls') || e.target.closest('#nextEpToast') || e.target.closest('#playerFloatingHeader')) return;

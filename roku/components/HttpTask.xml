@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="HttpTask" extends="Task">
+    <interface>
+        <field id="url" type="string" />
+        <field id="method" type="string" />
+        <field id="body" type="string" />
+        <field id="response" type="string" />
+        <field id="status" type="integer" />
+        <field id="error" type="string" />
+        <field id="done" type="boolean" />
+    </interface>
+    <script type="text/brightscript"><![CDATA[
+        sub init()
+            m.top.functionName = "run"
+        end sub
+
+        sub run()
+            m.top.done = false
+            m.top.error = ""
+            m.top.status = -1
+            m.top.response = ""
+
+            xfer = CreateObject("roUrlTransfer")
+            xfer.SetCertificatesFile("common:/certs/ca-bundle.crt")
+            xfer.EnablePeerVerification(true)
+            xfer.SetUrl(m.top.url)
+
+            if UCase(m.top.method) = "POST"
+                xfer.AddHeader("Content-Type", "application/json; charset=utf-8")
+                port = CreateObject("roMessagePort")
+                xfer.SetPort(port)
+                if not xfer.AsyncPostFromString(m.top.body)
+                    m.top.error = "Falha ao iniciar a requisição."
+                    m.top.done = true
+                    return
+                end if
+                msg = Wait(20000, port)
+                if Type(msg) = "roUrlEvent"
+                    m.top.status = msg.GetResponseCode()
+                    if msg.GetResponseCode() >= 0
+                        m.top.response = msg.GetString()
+                    else
+                        m.top.error = msg.GetFailureReason()
+                    end if
+                else
+                    m.top.error = "Tempo esgotado."
+                    xfer.AsyncCancel()
+                end if
+            else
+                m.top.response = xfer.GetToString()
+                if Len(m.top.response) = 0
+                    m.top.error = "Resposta vazia."
+                else
+                    m.top.status = 200
+                end if
+            end if
+
+            m.top.done = true
+        end sub
+    ]]></script>
+</component>

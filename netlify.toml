@@ -3,6 +3,11 @@ publish = "public"
 functions = "netlify/functions"
 
 [[redirects]]
+from = "/api/v1/device/*"
+to = "/.netlify/functions/licensing"
+status = 200
+
+[[redirects]]
 from = "/api/*"
 to = "/.netlify/functions/api"
 status = 200

@@ -94,7 +94,6 @@
           "Type": "Application"
         }
       },
-      "desktopName": "wrb-tv-player",
       "syncDesktopName": true
     },
     "mac": {
@@ -115,8 +114,7 @@
       "artifactName": "WRB-TV-Player.${ext}",
       "category": "public.app-category.entertainment",
       "identity": null,
-      "notarize": false,
-      "desktopName": "wrb-tv-player"
+      "notarize": false
     },
     "deb": {
       "packageCategory": "video",
@@ -143,5 +141,6 @@
   "author": {
     "name": "Wagner Bomfim",
     "email": "wagner.ads.ti@gmail.com"
-  }
+  },
+  "desktopName": "com.wrbtv.player.desktop"
 }

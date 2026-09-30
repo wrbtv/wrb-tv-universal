@@ -67,6 +67,7 @@ let windowedBounds = null;
 let appFullscreenRequested = false;
 let appFullscreenActive = false;
 let playerFullscreenActive = false;
+let suppressMaximizeToFullscreen = false;
 
 function configureAutoUpdater() {
   if (!app.isPackaged) return;
@@ -212,6 +213,9 @@ ipcMain.handle('wrb:set-app-fullscreen', (_event, enabled) => {
   // portanto também existe uma segunda normalização no evento leave-full-screen.
   appFullscreenRequested = false;
   appFullscreenActive = false;
+  // Impede que a transição de restauração seja interpretada como novo
+  // comando do usuário para entrar em fullscreen.
+  suppressMaximizeToFullscreen = true;
 
   try {
     if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
@@ -235,11 +239,13 @@ ipcMain.handle('wrb:set-app-fullscreen', (_event, enabled) => {
       }
 
       mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
-    }, 220);
+      suppressMaximizeToFullscreen = false;
+    }, 450);
   } catch (error) {
     console.error('[WRB-TV] Falha ao restaurar a janela normal:', error);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+      suppressMaximizeToFullscreen = false;
     }
   }
 
@@ -373,7 +379,7 @@ function createWindow() {
 
   // Maximizar a janela normal = entrar no modo TV/fullscreen.
   mainWindow.on('maximize', () => {
-    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isFullScreen()) return;
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isFullScreen() || suppressMaximizeToFullscreen) return;
     windowedBounds = mainWindow.getBounds();
     appFullscreenRequested = true;
     appFullscreenActive = true;
@@ -403,6 +409,7 @@ function createWindow() {
     // tê-los limpado antes deste evento assíncrono chegar.
     appFullscreenActive = false;
     appFullscreenRequested = false;
+    suppressMaximizeToFullscreen = true;
 
     try {
       if (mainWindow.isMaximized()) mainWindow.unmaximize();
@@ -423,10 +430,12 @@ function createWindow() {
         mainWindow.show();
         mainWindow.focus();
         mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
-      }, 120);
+        suppressMaximizeToFullscreen = false;
+      }, 450);
     } catch (error) {
       console.error('[WRB-TV] Falha no evento de saída do modo TV:', error);
       mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+      suppressMaximizeToFullscreen = false;
     }
   });
 

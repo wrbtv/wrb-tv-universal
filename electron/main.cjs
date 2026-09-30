@@ -302,12 +302,16 @@ function createWindow() {
 
     mainWindow.show();
 
-    // Alguns ambientes Linux aplicam fullscreen com mais confiabilidade
-    // depois que a janela já está mapeada na tela.
+    // Entra no modo TV assim que a janela estiver visível.
+    // A pequena espera melhora a compatibilidade com GNOME/KDE e outros
+    // gerenciadores de janelas que só aceitam fullscreen após o mapeamento.
     setTimeout(() => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
+      appFullscreenRequested = true;
+      appFullscreenActive = true;
       if (!mainWindow.isFullScreen()) mainWindow.setFullScreen(true);
-    }, 60);
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', true);
+    }, 80);
   });
 
   mainWindow.on('closed', () => {

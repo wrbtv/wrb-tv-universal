@@ -47,6 +47,9 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           TAG="v${VERSION}"
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "WRB-TV Player $VERSION" --notes "WRB-TV Player Universal $VERSION" --latest
+          fi
           gh release upload "$TAG" release/WRB-TV-Player.AppImage release/WRB-TV-Player.deb release/latest-linux.yml --repo "$GITHUB_REPOSITORY" --clobber
 
   macos:
@@ -79,4 +82,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           TAG="v${VERSION}"
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "WRB-TV Player $VERSION" --notes "WRB-TV Player Universal $VERSION" --latest
+          fi
           gh release upload "$TAG" release/WRB-TV-Player.dmg release/WRB-TV-Player.zip release/latest-mac.yml --repo "$GITHUB_REPOSITORY" --clobber

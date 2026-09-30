@@ -24,11 +24,11 @@ jobs:
 
       - name: Publish Roku package
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="roku-v1.0.\${GITHUB_RUN_NUMBER}"
+          TAG="roku-v1.0.${GITHUB_RUN_NUMBER}"
           gh release create "$TAG" WRB-PLAY-ROKU.zip \
             --repo "$GITHUB_REPOSITORY" \
-            --title "WRB-PLAY-ROKU 1.0 Build \${GITHUB_RUN_NUMBER}" \
+            --title "WRB-PLAY-ROKU 1.0 Build ${GITHUB_RUN_NUMBER}" \
             --notes "Pacote Roku para sideload/teste. Integrado à API de ativação do WRB-TV Business." \
             --latest

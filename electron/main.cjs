@@ -54,11 +54,6 @@ function getDeviceId() {
     return formatDeviceId(crypto.randomBytes(6).toString('hex'));
   }
 }
-let mainWindow = null;
-let localServer = null;
-let shuttingDown = false;
-
-
 let updateDownloadInProgress = false;
 let updateAvailableVersion = null;
 let updateCheckInProgress = false;

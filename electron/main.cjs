@@ -184,9 +184,9 @@ ipcMain.handle('wrb:is-fullscreen', () => {
 ipcMain.handle('wrb:set-app-fullscreen', (_event, enabled) => {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
 
-  appFullscreenRequested = !!enabled;
-
   if (enabled) {
+    appFullscreenRequested = true;
+
     if (!mainWindow.isFullScreen()) {
       windowedBounds = mainWindow.getBounds();
       appFullscreenActive = true;
@@ -195,13 +195,40 @@ ipcMain.handle('wrb:set-app-fullscreen', (_event, enabled) => {
       appFullscreenActive = true;
       mainWindow.webContents.send('wrb:app-fullscreen-changed', true);
     }
-  } else if (appFullscreenActive || mainWindow.isFullScreen()) {
-    appFullscreenActive = false;
-    if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
-    else mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+
+    return true;
   }
 
-  return mainWindow.isFullScreen();
+  // Saída do modo TV: desfaz o fullscreen nativo e restaura
+  // explicitamente a janela decorada/normal.
+  appFullscreenRequested = false;
+  appFullscreenActive = false;
+
+  try {
+    if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    mainWindow.setResizable(true);
+    mainWindow.show();
+    mainWindow.focus();
+
+    const bounds = windowedBounds || { width: 1440, height: 900 };
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (!mainWindow.isFullScreen() && !mainWindow.isMaximized()) {
+        mainWindow.setBounds(bounds, false);
+        mainWindow.show();
+        mainWindow.focus();
+      }
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+    }, 180);
+  } catch (error) {
+    console.error('[WRB-TV] Falha ao restaurar a janela normal:', error);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+    }
+  }
+
+  return false;
 });
 
 function appRoot() {
@@ -295,6 +322,7 @@ function createWindow() {
     title: 'WRB-TV Player',
     icon: getWindowIconPath(),
     fullscreenable: true,
+    frame: true,
     webPreferences: {
       preload: path.join(appRoot(), 'electron', 'preload.cjs'),
       contextIsolation: true,
@@ -331,9 +359,9 @@ function createWindow() {
   // Maximizar a janela normal = entrar no modo TV/fullscreen.
   mainWindow.on('maximize', () => {
     if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isFullScreen()) return;
+    windowedBounds = mainWindow.getBounds();
     appFullscreenRequested = true;
     appFullscreenActive = true;
-    windowedBounds = mainWindow.getBounds();
     mainWindow.setFullScreen(true);
   });
 
@@ -349,11 +377,9 @@ function createWindow() {
   mainWindow.on('leave-full-screen', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
-    if (appFullscreenActive) {
-      appFullscreenActive = false;
-      appFullscreenRequested = false;
-      mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
-    }
+    const wasAppFullscreen = appFullscreenActive || appFullscreenRequested;
+    appFullscreenActive = false;
+    appFullscreenRequested = false;
 
     if (playerFullscreenActive) {
       playerFullscreenActive = false;
@@ -362,12 +388,20 @@ function createWindow() {
 
     if (mainWindow.isMaximized()) mainWindow.unmaximize();
 
-    if (windowedBounds) {
-      setTimeout(() => {
-        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFullScreen()) {
-          mainWindow.setBounds(windowedBounds, false);
-        }
-      }, 150);
+    // Garante que o gerenciador de janelas volte para o modo decorado.
+    if (wasAppFullscreen) {
+      mainWindow.setResizable(true);
+      mainWindow.show();
+      if (windowedBounds) {
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFullScreen() && !mainWindow.isMaximized()) {
+            mainWindow.setBounds(windowedBounds, false);
+            mainWindow.show();
+            mainWindow.focus();
+          }
+        }, 220);
+      }
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
     }
   });
 

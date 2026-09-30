@@ -1,6 +1,6 @@
 {
   "name": "wrb-tv-player",
-  "version": "2.0.33",
+  "version": "2.0.34",
   "description": "WRB-TV Player Desktop com servidor local integrado",
   "private": true,
   "type": "module",
@@ -83,17 +83,19 @@
       "description": "WRB-TV Player para Linux.",
       "maintainer": "Wagner Bomfim <wagner.ads.ti@gmail.com>",
       "artifactName": "WRB-TV-Player.${ext}",
-      "icon": "build/logo-source.png",
       "desktop": {
         "entry": {
           "Name": "WRB-TV Player",
           "Comment": "Player IPTV Universal",
           "Categories": "AudioVideo;Video;",
           "Keywords": "IPTV;TV;Video;Streaming;",
+          "StartupWMClass": "wrb-tv-player",
           "Terminal": false,
           "Type": "Application"
         }
-      }
+      },
+      "desktopName": "wrb-tv-player",
+      "syncDesktopName": true
     },
     "mac": {
       "target": [
@@ -112,9 +114,9 @@
       ],
       "artifactName": "WRB-TV-Player.${ext}",
       "category": "public.app-category.entertainment",
-      "icon": "build/logo-source.png",
       "identity": null,
-      "notarize": false
+      "notarize": false,
+      "desktopName": "wrb-tv-player"
     },
     "deb": {
       "packageCategory": "video",

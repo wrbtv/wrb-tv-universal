@@ -1,4 +1,5 @@
 sub init()
+    m.top.backExitsScene = false
     m.top.observeField("apiBase", "onApiBase")
 
     m.loginView = m.top.findNode("loginView")
@@ -11,6 +12,17 @@ sub init()
     m.userInput = m.top.findNode("userInput")
     m.passInput = m.top.findNode("passInput")
     m.loginError = m.top.findNode("loginError")
+
+    m.navHome = m.top.findNode("navHome")
+    m.navLive = m.top.findNode("navLive")
+    m.navMovies = m.top.findNode("navMovies")
+    m.navSeries = m.top.findNode("navSeries")
+
+    m.homeLive = m.top.findNode("homeLive")
+    m.homeMovies = m.top.findNode("homeMovies")
+    m.homeSeries = m.top.findNode("homeSeries")
+    m.homeFavs = m.top.findNode("homeFavs")
+    m.homeExit = m.top.findNode("homeExit")
 
     m.categories = m.top.findNode("categories")
     m.grid = m.top.findNode("contentGrid")
@@ -108,7 +120,7 @@ sub requestFinished(evt as Object)
             m.authorized = true
             m.blockedView.visible = false
             m.loginView.visible = true
-            m.loginButton.setFocus(true)
+            m.serverInput.setFocus(true)
         else
             m.authorized = false
             m.loginView.visible = false
@@ -489,6 +501,111 @@ end sub
 
 function onKeyEvent(key as String, press as Boolean) as Boolean
     if not press then return false
+
+    ' Login: navegação explícita entre campos e botão.
+    if m.loginView.visible
+        if key = "down"
+            if m.serverInput.hasFocus()
+                m.userInput.setFocus(true)
+                return true
+            else if m.userInput.hasFocus()
+                m.passInput.setFocus(true)
+                return true
+            else if m.passInput.hasFocus()
+                m.loginButton.setFocus(true)
+                return true
+            end if
+        else if key = "up"
+            if m.userInput.hasFocus()
+                m.serverInput.setFocus(true)
+                return true
+            else if m.passInput.hasFocus()
+                m.userInput.setFocus(true)
+                return true
+            else if m.loginButton.hasFocus()
+                m.passInput.setFocus(true)
+                return true
+            end if
+        else if key = "OK" or key = "select"
+            if m.loginButton.hasFocus()
+                onLogin()
+                return true
+            end if
+        end if
+    end if
+
+    ' Home: navegação previsível pelo D-pad.
+    if m.homeView.visible
+        if key = "left"
+            if m.homeMovies.hasFocus()
+                m.homeLive.setFocus(true)
+                return true
+            else if m.homeSeries.hasFocus()
+                m.homeMovies.setFocus(true)
+                return true
+            else if m.homeExit.hasFocus()
+                m.homeFavs.setFocus(true)
+                return true
+            end if
+        else if key = "right"
+            if m.homeLive.hasFocus()
+                m.homeMovies.setFocus(true)
+                return true
+            else if m.homeMovies.hasFocus()
+                m.homeSeries.setFocus(true)
+                return true
+            else if m.homeFavs.hasFocus()
+                m.homeExit.setFocus(true)
+                return true
+            end if
+        else if key = "up"
+            if m.homeFavs.hasFocus()
+                m.homeLive.setFocus(true)
+                return true
+            else if m.homeExit.hasFocus()
+                m.homeMovies.setFocus(true)
+                return true
+            end if
+        else if key = "down"
+            if m.homeLive.hasFocus()
+                m.homeFavs.setFocus(true)
+                return true
+            else if m.homeMovies.hasFocus()
+                m.homeExit.setFocus(true)
+                return true
+            else if m.homeSeries.hasFocus()
+                m.homeExit.setFocus(true)
+                return true
+            end if
+        end if
+    end if
+
+    ' Menu superior.
+    if m.navHome.hasFocus() or m.navLive.hasFocus() or m.navMovies.hasFocus() or m.navSeries.hasFocus()
+        if key = "left"
+            if m.navLive.hasFocus()
+                m.navHome.setFocus(true)
+                return true
+            else if m.navMovies.hasFocus()
+                m.navLive.setFocus(true)
+                return true
+            else if m.navSeries.hasFocus()
+                m.navMovies.setFocus(true)
+                return true
+            end if
+        else if key = "right"
+            if m.navHome.hasFocus()
+                m.navLive.setFocus(true)
+                return true
+            else if m.navLive.hasFocus()
+                m.navMovies.setFocus(true)
+                return true
+            else if m.navMovies.hasFocus()
+                m.navSeries.setFocus(true)
+                return true
+            end if
+        end if
+    end if
 
     if key = "back"
         if m.video <> invalid and m.contentView.visible and m.video.control <> "stop"

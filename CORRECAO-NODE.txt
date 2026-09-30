@@ -1,0 +1,12 @@
+WRB-TV Player 2.0.20
+
+CORREÇÃO PRINCIPAL:
+O servidor local agora roda DENTRO do processo Electron.
+
+O computador do usuário NÃO precisa ter Node.js instalado.
+
+Para gerar o instalador em uma máquina de desenvolvimento, execute:
+BUILD-INSTALADOR-WINDOWS.bat
+
+O usuário final deve instalar somente:
+WRB-TV-Player-Setup-2.0.20-x64.exe

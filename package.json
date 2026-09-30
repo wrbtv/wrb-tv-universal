@@ -1,9 +1,70 @@
 {
-  "name": "wrb-tv-universal",
-  "version": "2.0.0",
+  "name": "wrb-tv-player",
+  "version": "2.0.21",
+  "description": "WRB-TV Player Desktop com servidor local integrado",
   "private": true,
   "type": "module",
-  "scripts": {"dev":"vite","build":"vite build","preview":"vite preview"},
-  "dependencies": {"hls.js":"^1.6.13","react":"^19.1.1","react-dom":"^19.1.1","vite":"^7.1.7"},
-  "devDependencies": {}
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "desktop": "electron .",
+    "dist": "electron-builder --win nsis",
+    "dist:installer": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.wrbtv.player",
+    "productName": "WRB-TV Player",
+    "artifactName": "WRB-TV-Player-Setup-${version}-${arch}.${ext}",
+    "asar": false,
+    "compression": "maximum",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "public/**/*",
+      "functions/**/*",
+      "server.mjs",
+      "package.json",
+      "README.md",
+      "logo.png"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "WRB-TV Player",
+      "deleteAppDataOnUninstall": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "runAfterFinish": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "wrbtv",
+      "repo": "wrb-tv-universal",
+      "releaseType": "release",
+      "vPrefixedTagName": true
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  }
 }

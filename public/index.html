@@ -4782,19 +4782,32 @@
       try {
         const deviceId = await getWrbBusinessDeviceId();
         if (!deviceId) return;
-        const response = await fetch(WRB_BUSINESS_API + '/heartbeat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            device_id: deviceId,
-            app_id: 'WRB-TV Universal',
-            platform: navigator.userAgent.includes('Windows') ? 'Windows' : 'Desktop',
-            version: '2.0.44',
-            username: state.session?.user || '',
-            client: state.session?.info?.username || ''
-          })
+        const payload = JSON.stringify({
+          device_id: deviceId,
+          app_id: 'WRB-TV Universal',
+          platform: 'Desktop',
+          version: '2.0.44',
+          username: state.session?.user || ''
         });
-        if (!response.ok) return;
+
+        // sendBeacon evita preflight CORS e funciona mesmo antes do login.
+        try {
+          if (navigator.sendBeacon) {
+            const blob = new Blob([payload], { type: 'text/plain;charset=UTF-8' });
+            navigator.sendBeacon(WRB_BUSINESS_API + '/heartbeat', blob);
+          }
+        } catch (_) {}
+
+        // Fallback/confirmacao para ambientes sem sendBeacon.
+        try {
+          await fetch(WRB_BUSINESS_API + '/heartbeat', {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: payload,
+            keepalive: true
+          });
+        } catch (_) {}
       } catch (_) {}
     }
 
@@ -4852,11 +4865,11 @@
       };
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       syncAppNativeFullscreen();
-      loadDeviceId();
-      // Registra o dispositivo no WRB-TV Business mesmo antes do login.
-      setTimeout(() => wrbBusinessHeartbeat(), 250);
+      await loadDeviceId();
+      // Registra o dispositivo no WRB-TV Business imediatamente, antes do login.
+      wrbBusinessHeartbeat();
       const saved = localStorage.getItem('wrbtv_session');
       if (saved) {
         try {

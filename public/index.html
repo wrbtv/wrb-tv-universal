@@ -2513,7 +2513,7 @@
       <h2 id="licenseTitle">Verificando dispositivo</h2>
       <p id="licenseMessage">Aguarde enquanto verificamos a autorização deste dispositivo.</p>
       <div class="license-id-box"><span>ID DO DISPOSITIVO</span><code id="licenseDeviceId">Gerando...</code></div>
-      <button id="licenseRetry" class="license-retry" type="button" style="display:none">TENTAR NOVAMENTE</button>
+      <div class="license-actions"><button id="licenseCopy" class="license-copy" type="button">COPIAR ID</button><button id="licenseRetry" class="license-retry" type="button" style="display:none">TENTAR NOVAMENTE</button></div>
     </div>
   </section>
 
@@ -4850,6 +4850,10 @@
       syncAppNativeFullscreen();
       const authorized = await verifyWrbDeviceLicense();
       $('licenseRetry')?.addEventListener('click', () => verifyWrbDeviceLicense());
+      $('licenseCopy')?.addEventListener('click', async () => {
+        const id=$('licenseDeviceId')?.textContent||'';
+        try { await navigator.clipboard.writeText(id); if($('licenseCopy')) $('licenseCopy').textContent='ID COPIADO'; setTimeout(()=>{if($('licenseCopy')) $('licenseCopy').textContent='COPIAR ID'},1800); } catch (_) {}
+      });
       if (!authorized) return;
       loadDeviceId();
       const saved = localStorage.getItem('wrbtv_session');

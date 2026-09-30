@@ -1,0 +1,32 @@
+name: Archive Windows Source
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Create source ZIP
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p dist-src/WRB-TV-Player-v${VERSION}
+          rsync -a --exclude='.git' ./ dist-src/WRB-TV-Player-v${VERSION}/
+          rm -rf dist-src/WRB-TV-Player-v${VERSION}/dist-src
+          cd dist-src
+          zip -r "../WRB-TV-Player-v${VERSION}.zip" "WRB-TV-Player-v${VERSION}"
+      - name: Upload source ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: WRB-TV-Player-v2.0.32-source
+          path: WRB-TV-Player-v*.zip
+          if-no-files-found: error

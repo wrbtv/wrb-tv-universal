@@ -73,27 +73,29 @@
         }
       ],
       "category": "AudioVideo",
-      "artifactName": "WRB-TV-Player-${arch}.${ext}"
+      "artifactName": "WRB-TV-Player.${ext}",
+      "icon": "build/logo-source.png"
     },
     "mac": {
       "target": [
         {
           "target": "dmg",
           "arch": [
-            "x64",
-            "arm64"
+            "universal"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "x64",
-            "arm64"
+            "universal"
           ]
         }
       ],
-      "artifactName": "WRB-TV-Player-${arch}.${ext}",
-      "category": "public.app-category.entertainment"
+      "artifactName": "WRB-TV-Player.${ext}",
+      "category": "public.app-category.entertainment",
+      "icon": "build/logo-source.png",
+      "identity": null,
+      "notarize": false
     }
   },
   "dependencies": {

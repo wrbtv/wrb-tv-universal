@@ -31,12 +31,13 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm install
-      - name: Build Linux AppImage
-        run: npx electron-builder --linux AppImage --x64 --publish never
+      - name: Build Linux DEB and AppImage
+        run: npx electron-builder --linux deb AppImage --x64 --publish never
       - name: Validate Linux build
         shell: bash
         run: |
           test -f release/WRB-TV-Player.AppImage
+          test -f release/WRB-TV-Player.deb
           test -f release/latest-linux.yml
           ls -lh release
       - name: Publish Linux assets
@@ -46,7 +47,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           TAG="v${VERSION}"
-          gh release upload "$TAG" release/WRB-TV-Player.AppImage release/latest-linux.yml --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$TAG" release/WRB-TV-Player.AppImage release/WRB-TV-Player.deb release/latest-linux.yml --repo "$GITHUB_REPOSITORY" --clobber
 
   macos:
     runs-on: macos-latest

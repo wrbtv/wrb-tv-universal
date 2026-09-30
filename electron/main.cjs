@@ -67,14 +67,6 @@ let updateCheckTimer = null;
 function configureAutoUpdater() {
   if (!app.isPackaged) return;
 
-  // Configuração explícita do GitHub para não depender somente do app-update.yml.
-  autoUpdater.setFeedURL({
-    provider: 'github',
-    owner: 'wrbtv',
-    repo: 'wrb-tv-universal',
-    releaseType: 'release'
-  });
-
   // O download é disparado explicitamente no evento update-available.
   // Isso torna o comportamento previsível e mantém a instalação automática no fechamento.
   autoUpdater.autoDownload = false;

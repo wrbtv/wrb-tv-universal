@@ -273,6 +273,16 @@ function stopLocalServer() {
   localServer = null;
 }
 
+function getWindowIconPath() {
+  if (process.platform === 'win32') {
+    return path.join(appRoot(), 'build', 'icon.ico');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(appRoot(), 'build', 'logo-source.png');
+  }
+  return path.join(appRoot(), 'build', 'logo-source.png');
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -283,7 +293,7 @@ function createWindow() {
     show: false,
     autoHideMenuBar: true,
     title: 'WRB-TV Player',
-    icon: path.join(appRoot(), 'build', 'icon.ico'),
+    icon: getWindowIconPath(),
     fullscreenable: true,
     webPreferences: {
       preload: path.join(appRoot(), 'electron', 'preload.cjs'),

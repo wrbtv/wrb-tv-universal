@@ -2444,7 +2444,12 @@
       overflow: hidden !important;
     }
 
-  </style>
+      /* DEVICE LICENSE GATE */
+    .license-gate{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(circle at top,rgba(0,210,255,.08),transparent 45%),#06090e}
+    .license-card{width:min(440px,100%);padding:34px 30px;text-align:center;background:rgba(11,17,25,.97);border:1px solid rgba(255,255,255,.1);border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.65)}
+    .license-brand{font-size:34px;font-weight:900;letter-spacing:-1.4px;margin-bottom:22px}.license-brand span{color:#00d2ff}.license-spinner{width:38px;height:38px;margin:0 auto 18px;border-radius:50%;border:3px solid rgba(255,255,255,.12);border-top-color:#00d2ff;animation:wrbSpin .8s linear infinite}
+    .license-card h2{font-size:21px;margin-bottom:9px}.license-card p{color:#8295a5;font-size:13px;line-height:1.6;margin:0 auto 18px;max-width:360px}.license-id-box{background:rgba(0,210,255,.05);border:1px solid rgba(0,210,255,.17);border-radius:10px;padding:12px}.license-id-box span{display:block;font-size:9px;letter-spacing:1.1px;color:#6d7e90;margin-bottom:6px}.license-id-box code{font:700 17px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#00d2ff;letter-spacing:1.6px}.license-retry{margin-top:18px;padding:12px 18px;border-radius:9px;border:1px solid #00d2ff;background:#00d2ff;color:#061018;font-weight:800;cursor:pointer}body.license-pending #view-login{visibility:hidden}@keyframes wrbSpin{to{transform:rotate(360deg)}}
+</style>
 </head>
 <body>
 
@@ -2499,6 +2504,18 @@
   </header>
 
   <button id="appFullscreenExit" class="app-fullscreen-exit" type="button" title="Sair da tela cheia" aria-label="Sair da tela cheia">✕</button>
+
+  <!-- WRB-TV DEVICE LICENSE GATE -->
+  <section id="license-gate" class="license-gate" aria-live="polite">
+    <div class="license-card">
+      <div class="license-brand">WRB<span>-TV</span></div>
+      <div class="license-spinner" id="licenseSpinner"></div>
+      <h2 id="licenseTitle">Verificando dispositivo</h2>
+      <p id="licenseMessage">Aguarde enquanto verificamos a autorização deste dispositivo.</p>
+      <div class="license-id-box"><span>ID DO DISPOSITIVO</span><code id="licenseDeviceId">Gerando...</code></div>
+      <button id="licenseRetry" class="license-retry" type="button" style="display:none">TENTAR NOVAMENTE</button>
+    </div>
+  </section>
 
   <!-- VIEW: LOGIN & SERVER SETUP -->
   <section id="view-login">
@@ -2716,6 +2733,10 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
   <script>
+    // DEVICE LICENSE SERVER
+    // Configure this once the online WRB-TV Business API is deployed.
+    window.WRB_LICENSE_API_BASE = "__SET_AFTER_NETLIFY_DEPLOY__";
+    window.WRB_LICENSE_DEV_ALLOW_UNCONFIGURED = false;
     'use strict';
 
     // STATE
@@ -4761,28 +4782,52 @@
 
     async function loadDeviceId() {
       const field = $('deviceIdDisplay');
-      if (!field) return;
-
       try {
         if (window.wrbDesktop && typeof window.wrbDesktop.getDeviceId === 'function') {
           const id = await window.wrbDesktop.getDeviceId();
           if (id) {
-            field.value = id;
-            return;
+            if (field) field.value = id;
+            const g = $('licenseDeviceId'); if (g) g.textContent = id;
+            return id;
           }
         }
       } catch (_) {}
-
-      // Fallback para versões web ou ambientes sem a ponte Electron.
       let id = localStorage.getItem('wrbtv_device_id');
       if (!id && window.crypto?.getRandomValues) {
         const bytes = new Uint8Array(6);
         window.crypto.getRandomValues(bytes);
-        id = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(':').toUpperCase();
-        localStorage.setItem('wrbtv_device_id', id);
+        id = Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join(':').toUpperCase();
+        localStorage.setItem('wrbtv_device_id',id);
       }
-      field.value = id || 'NÃO DISPONÍVEL';
+      const finalId=id||'NÃO DISPONÍVEL';
+      if(field) field.value=finalId;
+      const g=$('licenseDeviceId'); if(g) g.textContent=finalId;
+      return finalId;
     }
+
+    async function verifyWrbDeviceLicense() {
+      const gate=$('license-gate'), spinner=$('licenseSpinner'), title=$('licenseTitle'), message=$('licenseMessage'), retry=$('licenseRetry');
+      const id=await loadDeviceId();
+      const fail=(m)=>{ if(spinner) spinner.style.display='none'; if(title) title.textContent='Dispositivo não autorizado'; if(message) message.textContent=m; if(retry) retry.style.display='inline-flex'; document.body.classList.add('license-pending'); if(gate) gate.style.display='flex'; return false; };
+      if(!id||id==='NÃO DISPONÍVEL') return fail('Não foi possível obter o identificador deste dispositivo.');
+      const base=String(window.WRB_LICENSE_API_BASE||'').trim().replace(/\/+$/,'');
+      if(!base||base.includes('__SET_AFTER_NETLIFY_DEPLOY__')){
+        if(window.WRB_LICENSE_DEV_ALLOW_UNCONFIGURED){document.body.classList.remove('license-pending');if(gate)gate.style.display='none';return true;}
+        return fail('O servidor de ativação ainda não foi configurado.');
+      }
+      if(spinner) spinner.style.display='block';
+      if(title) title.textContent='Verificando dispositivo';
+      if(message) message.textContent='Aguarde enquanto verificamos a autorização deste dispositivo.';
+      if(retry) retry.style.display='none';
+      try{
+        const r=await fetch(base+'/api/v1/device/check',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({device_id:id,app_id:'wrbtv-player',app_version:document.querySelector('meta[name="wrb-app-version"]')?.content||'unknown',platform:navigator.userAgent||'unknown'})});
+        const d=await r.json().catch(()=>({}));
+        if(!r.ok && r.status!==403) throw new Error(d?.error||'Falha na verificação.');
+        if(!d.authorized) return fail('Para realizar a ativação, entre em contato com seu fornecedor.');
+        document.body.classList.remove('license-pending');if(gate)gate.style.display='none';return true;
+      }catch(_){ return fail('Não foi possível verificar a ativação. Verifique sua internet e tente novamente.'); }
+    }
+
 
     // AUTO-RESTORE SAVED SESSION
     if (window.wrbDesktop?.onAppFullscreenChanged) {
@@ -4800,8 +4845,12 @@
       };
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
+      document.body.classList.add('license-pending');
       syncAppNativeFullscreen();
+      const authorized = await verifyWrbDeviceLicense();
+      $('licenseRetry')?.addEventListener('click', () => verifyWrbDeviceLicense());
+      if (!authorized) return;
       loadDeviceId();
       const saved = localStorage.getItem('wrbtv_session');
       if (saved) {

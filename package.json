@@ -89,16 +89,10 @@
           "Name": "WRB-TV Player",
           "Comment": "Player IPTV Universal",
           "Categories": "AudioVideo;Video;",
+          "Keywords": "IPTV;TV;Video;Streaming;",
           "Terminal": false,
           "Type": "Application"
         }
-      },
-      "deb": {
-        "packageCategory": "video",
-        "priority": "optional"
-      },
-      "toolsets": {
-        "appimage": "1.0.3"
       }
     },
     "mac": {
@@ -121,9 +115,31 @@
       "icon": "build/logo-source.png",
       "identity": null,
       "notarize": false
+    },
+    "deb": {
+      "packageCategory": "video",
+      "priority": "optional",
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0"
+      ]
+    },
+    "toolsets": {
+      "appimage": "1.0.3"
     }
   },
   "dependencies": {
     "electron-updater": "^6.6.2"
+  },
+  "author": {
+    "name": "Wagner Bomfim",
+    "email": "wagner.ads.ti@gmail.com"
   }
 }

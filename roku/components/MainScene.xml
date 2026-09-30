@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<component name="MainScene" extends="Scene">
+<component name="MainScene" extends="Scene" initialFocus="serverInput">
     <interface>
         <field id="apiBase" type="string" />
     </interface>
@@ -37,7 +37,7 @@
                 iconUri=" " focusedIconUri=" " />
         </Group>
 
-        <Group id="loginActions" translation="[1040,18]">
+        <Group id="loginActions" translation="[1040,18]" visible="false">
             <Label id="deviceBadge" text="ROKU" translation="[0,6]" width="92" height="28"
                 color="#63798C" horizAlign="right" font="font:SmallSystemFont" visible="false" />
             <Rectangle translation="[96,0]" width="134" height="40" color="#09131C" opacity="0.94" visible="false" />
@@ -46,44 +46,55 @@
         </Group>
 
         <Group id="loginView" translation="[0,82]" visible="true">
-            <Rectangle translation="[270,28]" width="740" height="600" color="#09131D" opacity="0.98" />
-            <Rectangle translation="[271,29]" width="738" height="1" color="#00D2FF" opacity="0.28" />
+            <Rectangle translation="[285,24]" width="710" height="588" color="#09131D" opacity="0.99" />
+            <Rectangle translation="[286,25]" width="708" height="2" color="#00D2FF" opacity="0.22" />
 
             <Poster id="loginLogo" uri="pkg:/images/icon_focus_hd.png"
-                translation="[575,44]" width="130" height="130" />
+                translation="[590,42]" width="100" height="100" />
 
-            <Label text="Seu Player IPTV Universal" translation="[300,182]" width="680" height="46"
-                font="font:LargeBoldSystemFont" color="#F4F7FA" horizAlign="center" />
+            <Label text="Seu Player IPTV Universal" translation="[335,152]" width="610" height="42"
+                font="font:LargeBoldSystemFont" color="#F5F8FB" horizAlign="center" />
             <Label text="Canais ao vivo, filmes e séries através de Xtream Codes"
-                translation="[310,230]" width="660" height="30"
+                translation="[345,198]" width="590" height="28"
                 font="font:SmallSystemFont" color="#7F93A6" horizAlign="center" />
 
-            <Rectangle translation="[310,272]" width="660" height="292" color="#071019" opacity="0.94" />
+            <Rectangle translation="[325,240]" width="630" height="300" color="#061019" opacity="0.94" />
 
-            <Label text="CÓDIGO / DNS DO SERVIDOR" translation="[335,290]" width="610" height="22"
+            <Label text="CÓDIGO / DNS DO SERVIDOR" translation="[350,255]" width="580" height="22"
                 font="font:SmallBoldSystemFont" color="#8CA0B5" />
-            <Button id="serverInput" text="http://servidor:porta" translation="[335,318]" width="610" height="50"
-                textColor="#64798B" focusedTextColor="#F2F7FB"
-                focusBitmapUri="pkg:/images/focus.9.png" iconUri=" " focusedIconUri=" " />
+            <Rectangle translation="[350,283]" width="580" height="50" color="#03070B" opacity="0.98" />
+            <Button id="serverInput" text="http://servidor:porta" translation="[350,283]" width="580" height="50"
+                textColor="#61788A" focusedTextColor="#F2F7FB"
+                focusBitmapUri="pkg:/images/focus.9.png"
+                focusFootprintBitmapUri="pkg:/images/focus.9.png"
+                showFocusFootprint="true" iconUri="" focusedIconUri="" />
 
-            <Label text="USUÁRIO" translation="[335,383]" width="610" height="22"
+            <Label text="USUÁRIO" translation="[350,348]" width="580" height="22"
                 font="font:SmallBoldSystemFont" color="#8CA0B5" />
-            <Button id="userInput" text="Seu usuário" translation="[335,411]" width="610" height="50"
-                textColor="#64798B" focusedTextColor="#F2F7FB"
-                focusBitmapUri="pkg:/images/focus.9.png" iconUri=" " focusedIconUri=" " />
+            <Rectangle translation="[350,376]" width="580" height="50" color="#03070B" opacity="0.98" />
+            <Button id="userInput" text="Seu usuário" translation="[350,376]" width="580" height="50"
+                textColor="#61788A" focusedTextColor="#F2F7FB"
+                focusBitmapUri="pkg:/images/focus.9.png"
+                focusFootprintBitmapUri="pkg:/images/focus.9.png"
+                showFocusFootprint="true" iconUri="" focusedIconUri="" />
 
-            <Label text="SENHA" translation="[335,476]" width="610" height="22"
+            <Label text="SENHA" translation="[350,441]" width="580" height="22"
                 font="font:SmallBoldSystemFont" color="#8CA0B5" />
-            <Button id="passInput" text="Sua senha" translation="[335,504]" width="610" height="50"
-                textColor="#64798B" focusedTextColor="#F2F7FB"
-                focusBitmapUri="pkg:/images/focus.9.png" iconUri=" " focusedIconUri=" " />
+            <Rectangle translation="[350,469]" width="580" height="50" color="#03070B" opacity="0.98" />
+            <Button id="passInput" text="Sua senha" translation="[350,469]" width="580" height="50"
+                textColor="#61788A" focusedTextColor="#F2F7FB"
+                focusBitmapUri="pkg:/images/focus.9.png"
+                focusFootprintBitmapUri="pkg:/images/focus.9.png"
+                showFocusFootprint="true" iconUri="" focusedIconUri="" />
 
-            <Label id="loginError" text="" translation="[335,562]" width="610" height="22"
+            <Label id="loginError" text="" translation="[350,526]" width="580" height="20"
                 color="#FF7180" horizAlign="center" font="font:SmallSystemFont" />
 
-            <Button id="loginButton" text="CONECTAR E ENTRAR" translation="[335,590]" width="610" height="50"
+            <Button id="loginButton" text="CONECTAR E ENTRAR" translation="[350,554]" width="580" height="46"
                 textColor="#AEBFCC" focusedTextColor="#061019"
-                focusBitmapUri="pkg:/images/focus.9.png" iconUri=" " focusedIconUri=" " />
+                focusBitmapUri="pkg:/images/focus.9.png"
+                focusFootprintBitmapUri="pkg:/images/focus.9.png"
+                showFocusFootprint="true" iconUri="" focusedIconUri="" />
         </Group>
 
         <Group id="homeView" translation="[0,82]" visible="false">

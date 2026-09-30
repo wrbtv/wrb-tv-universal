@@ -62,6 +62,38 @@
       "repo": "wrb-tv-universal",
       "releaseType": "release",
       "vPrefixedTagName": true
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "AudioVideo",
+      "artifactName": "WRB-TV-Player-${arch}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "WRB-TV-Player-${arch}.${ext}",
+      "category": "public.app-category.entertainment"
     }
   },
   "dependencies": {

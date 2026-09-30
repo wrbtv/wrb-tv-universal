@@ -88,6 +88,7 @@ sub init()
     m.categories.observeField("itemSelected", "categorySelected")
     m.grid.observeField("itemSelected", "gridSelected")
 
+    m.top.setFocus(true)
     m.serverInput.setFocus(true)
     updateLoginFocus()
     checkDevice()
@@ -283,6 +284,7 @@ sub tryLoginCandidate()
 end sub
 
 sub updateLoginFocus()
+    if m.loginView.visible = false then return
     if m.loginFieldIndex = 0
         m.serverFocus.visible = true
         m.userFocus.visible = false

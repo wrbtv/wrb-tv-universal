@@ -64,6 +64,8 @@ let updateAvailableVersion = null;
 let updateCheckInProgress = false;
 let updateCheckTimer = null;
 let windowedBounds = null;
+let appFullscreenRequested = false;
+let playerFullscreenRequested = false;
 
 function configureAutoUpdater() {
   if (!app.isPackaged) return;
@@ -153,6 +155,15 @@ ipcMain.handle('wrb:get-device-id', () => getDeviceId());
 
 ipcMain.handle('wrb:set-fullscreen', (_event, enabled) => {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
+  playerFullscreenRequested = !!enabled;
+
+  // Se o aplicativo inteiro já estiver em fullscreen, o player não deve
+  // derrubar o fullscreen do aplicativo ao fechar.
+  if (appFullscreenRequested) {
+    mainWindow.webContents.send('wrb:fullscreen-changed', !!enabled);
+    return true;
+  }
+
   if (enabled) {
     if (!mainWindow.isFullScreen()) {
       windowedBounds = mainWindow.getBounds();
@@ -168,7 +179,38 @@ ipcMain.handle('wrb:set-fullscreen', (_event, enabled) => {
       }, 150);
     }
   }
+
+  if (mainWindow.webContents && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('wrb:fullscreen-changed', !!enabled);
+  }
   return mainWindow.isFullScreen();
+});
+
+ipcMain.handle('wrb:is-fullscreen', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  return mainWindow.isFullScreen();
+});
+
+ipcMain.handle('wrb:set-app-fullscreen', (_event, enabled) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  appFullscreenRequested = !!enabled;
+
+  if (enabled) {
+    if (!mainWindow.isFullScreen()) {
+      windowedBounds = mainWindow.getBounds();
+      mainWindow.setFullScreen(true);
+    }
+  } else if (mainWindow.isFullScreen()) {
+    mainWindow.setFullScreen(false);
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (windowedBounds) mainWindow.setBounds(windowedBounds, false);
+        if (mainWindow.isMaximized()) mainWindow.unmaximize();
+      }
+    }, 150);
+  }
+
+  return true;
 });
 
 function appRoot() {
@@ -252,7 +294,6 @@ function createWindow() {
     title: 'WRB-TV Player',
     icon: path.join(appRoot(), 'build', 'icon.ico'),
     fullscreenable: true,
-    fullscreen: true,
     webPreferences: {
       preload: path.join(appRoot(), 'electron', 'preload.cjs'),
       contextIsolation: true,
@@ -263,6 +304,9 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    windowedBounds = mainWindow.getBounds();
+    appFullscreenRequested = true;
+    mainWindow.setFullScreen(true);
     mainWindow.show();
   });
 
@@ -273,17 +317,37 @@ function createWindow() {
   // Ao clicar no botão de maximizar da janela, entrar no modo TV/fullscreen.
   mainWindow.on('maximize', () => {
     if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isFullScreen()) return;
+    appFullscreenRequested = true;
     mainWindow.setFullScreen(true);
   });
 
   mainWindow.on('enter-full-screen', () => {
-    mainWindow.webContents.send('wrb:app-fullscreen-changed', true);
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (appFullscreenRequested) {
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', true);
+    }
+    if (playerFullscreenRequested && !appFullscreenRequested) {
+      mainWindow.webContents.send('wrb:fullscreen-changed', true);
+    }
   });
 
   mainWindow.on('leave-full-screen', () => {
-    mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
-    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (appFullscreenRequested) {
+      appFullscreenRequested = false;
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+    }
+    if (playerFullscreenRequested) {
+      playerFullscreenRequested = false;
+      mainWindow.webContents.send('wrb:fullscreen-changed', false);
+    }
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    if (windowedBounds) {
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFullScreen()) {
+          mainWindow.setBounds(windowedBounds, false);
+        }
+      }, 150);
     }
   });
 

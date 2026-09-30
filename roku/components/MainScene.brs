@@ -12,6 +12,8 @@ sub init()
     m.userInput = m.top.findNode("userInput")
     m.passInput = m.top.findNode("passInput")
     m.loginError = m.top.findNode("loginError")
+    m.navGroup = m.top.findNode("navGroup")
+    m.loginActions = m.top.findNode("loginActions")
 
     m.navHome = m.top.findNode("navHome")
     m.navLive = m.top.findNode("navLive")
@@ -53,6 +55,9 @@ sub init()
     m.authorized = false
     m.loginCandidates = []
     m.loginIndex = 0
+    m.editTarget = ""
+    m.editTargetButton = invalid
+    m.activeKeyboard = invalid
 
     m.refreshTimer = CreateObject("roSGNode", "Timer")
     m.refreshTimer.duration = 60
@@ -61,6 +66,10 @@ sub init()
     m.refreshTimer.control = "start"
 
     m.loginButton.observeField("buttonSelected", "onLogin")
+    m.serverInput.observeField("buttonSelected", "editServer")
+    m.userInput.observeField("buttonSelected", "editUser")
+    m.passInput.observeField("buttonSelected", "editPass")
+
     m.top.findNode("navHome").observeField("buttonSelected", "showHome")
     m.top.findNode("navLive").observeField("buttonSelected", "showLive")
     m.top.findNode("navMovies").observeField("buttonSelected", "showMovies")
@@ -119,6 +128,8 @@ sub requestFinished(evt as Object)
         if data.authorized = true
             m.authorized = true
             m.blockedView.visible = false
+            m.navGroup.visible = false
+            m.loginActions.visible = false
             m.loginView.visible = true
             m.serverInput.setFocus(true)
         else
@@ -166,6 +177,8 @@ sub handleLoginResponse(data as Object)
 
     m.loginError.text = ""
     m.userBadge.text = m.user
+    m.navGroup.visible = true
+    m.loginActions.visible = true
     showHome()
     heartbeat()
 end sub
@@ -235,9 +248,9 @@ sub onLogin()
         return
     end if
 
-    m.server = m.serverInput.text.Trim()
-    m.user = m.userInput.text.Trim()
-    m.pass = m.passInput.text
+    m.server = m.server.Trim()
+    m.user = m.user.Trim()
+    m.pass = m.pass.Trim()
 
     if Len(m.server) = 0 or Len(m.user) = 0 or Len(m.pass) = 0
         m.loginError.text = "Preencha servidor, usuário e senha."
@@ -269,7 +282,94 @@ sub showHome()
     m.contentView.visible = false
     m.blockedView.visible = false
     m.homeView.visible = true
-    m.top.findNode("navHome").setFocus(true)
+    m.navGroup.visible = true
+    m.loginActions.visible = true
+    m.navHome.setFocus(true)
+end sub
+
+sub editServer()
+    openLoginKeyboard("server", m.serverInput)
+end sub
+
+sub editUser()
+    openLoginKeyboard("user", m.userInput)
+end sub
+
+sub editPass()
+    openLoginKeyboard("pass", m.passInput)
+end sub
+
+sub openLoginKeyboard(kind as String, target as Object)
+    m.editTarget = kind
+    m.editTargetButton = target
+
+    dlg = CreateObject("roSGNode", "StandardKeyboardDialog")
+    dlg.title = "WRB-TV"
+    dlg.message = "Use o controle remoto para preencher este campo."
+    dlg.buttons = ["OK", "Cancelar"]
+
+    value = ""
+    if kind = "server"
+        value = m.server
+    else if kind = "user"
+        value = m.user
+    else if kind = "pass"
+        value = m.pass
+    end if
+
+    dlg.text = value
+
+    if kind = "pass"
+        if dlg.keyboard <> invalid and dlg.keyboard.textEditBox <> invalid
+            dlg.keyboard.textEditBox.secureMode = true
+        end if
+    end if
+
+    dlg.observeField("buttonSelected", "loginKeyboardSelected")
+    m.activeKeyboard = dlg
+    m.top.dialog = dlg
+end sub
+
+sub loginKeyboardSelected()
+    if m.activeKeyboard = invalid then return
+
+    idx = m.activeKeyboard.buttonSelected
+    value = m.activeKeyboard.text
+    target = m.editTargetButton
+
+    if idx = 0
+        if value = invalid then value = ""
+
+        if m.editTarget = "server"
+            m.server = value
+            if Len(value) = 0
+                m.serverInput.text = "http://servidor:porta"
+            else
+                m.serverInput.text = value
+            end if
+        else if m.editTarget = "user"
+            m.user = value
+            if Len(value) = 0
+                m.userInput.text = "Seu usuário"
+            else
+                m.userInput.text = value
+            end if
+        else if m.editTarget = "pass"
+            m.pass = value
+            if Len(value) = 0
+                m.passInput.text = "Sua senha"
+            else
+                m.passInput.text = "********"
+            end if
+        end if
+    end if
+
+    m.top.dialog = invalid
+    m.activeKeyboard = invalid
+    m.editTarget = ""
+    m.editTargetButton = invalid
+
+    if target <> invalid then target.setFocus(true)
 end sub
 
 sub loadCategoriesFor(t as String)
@@ -489,13 +589,15 @@ sub logout()
     m.user = ""
     m.pass = ""
     m.userBadge.text = ""
+    m.navGroup.visible = false
+    m.loginActions.visible = false
     m.homeView.visible = false
     m.contentView.visible = false
     m.loginView.visible = true
     m.loginError.text = ""
-    m.serverInput.text = ""
-    m.userInput.text = ""
-    m.passInput.text = ""
+    m.serverInput.text = "http://servidor:porta"
+    m.userInput.text = "Seu usuário"
+    m.passInput.text = "Sua senha"
     m.serverInput.setFocus(true)
 end sub
 

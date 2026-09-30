@@ -18,7 +18,7 @@
   "build": {
     "appId": "com.wrbtv.player",
     "productName": "WRB-TV Player",
-    "artifactName": "WRB-TV-Player-Setup-${version}-${arch}.${ext}",
+    "artifactName": "WRB-TV-Player-Setup.\${ext}",
     "asar": false,
     "compression": "maximum",
     "directories": {
@@ -66,6 +66,5 @@
   },
   "dependencies": {
     "electron-updater": "^6.6.2"
-  },
-  "artifactName": "WRB-TV-Player-Setup.${ext}"
+  }
 }

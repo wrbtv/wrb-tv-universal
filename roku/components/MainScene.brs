@@ -1,5 +1,18 @@
 sub init()
     m.top.backExitsScene = false
+    m.top.palette = CreateObject("roSGNode", "RSGPalette")
+    m.top.palette.colors = {
+        DialogBackgroundColor: "0x071019FF",
+        DialogItemColor: "0x00D2FFFF",
+        DialogTextColor: "0xF2F7FBFF",
+        DialogFocusColor: "0x00BDEBFF",
+        DialogFocusItemColor: "0x061019FF",
+        DialogSecondaryTextColor: "0x71869AFF",
+        DialogSecondaryItemColor: "0x103042FF",
+        DialogInputFieldColor: "0x142B38FF",
+        DialogKeyboardColor: "0x071019FF",
+        DialogFootprintColor: "0x16485AFF"
+    }
     m.top.observeField("apiBase", "onApiBase")
 
     m.loginView = m.top.findNode("loginView")
@@ -58,17 +71,13 @@ sub init()
     m.editTarget = ""
     m.editTargetButton = invalid
     m.activeKeyboard = invalid
+    m.loginFieldIndex = 0
 
     m.refreshTimer = CreateObject("roSGNode", "Timer")
     m.refreshTimer.duration = 60
     m.refreshTimer.repeat = true
     m.refreshTimer.observeField("fire", "heartbeat")
     m.refreshTimer.control = "start"
-
-    m.loginButton.observeField("buttonSelected", "onLogin")
-    m.serverInput.observeField("buttonSelected", "editServer")
-    m.userInput.observeField("buttonSelected", "editUser")
-    m.passInput.observeField("buttonSelected", "editPass")
 
     m.top.findNode("navHome").observeField("buttonSelected", "showHome")
     m.top.findNode("navLive").observeField("buttonSelected", "showLive")
@@ -131,7 +140,8 @@ sub requestFinished(evt as Object)
             m.navGroup.visible = false
             m.loginActions.visible = false
             m.loginView.visible = true
-            m.serverInput.setFocus(true)
+            m.loginFieldIndex = 0
+            updateLoginFocus()
         else
             m.authorized = false
             m.loginView.visible = false
@@ -170,7 +180,9 @@ sub handleLoginResponse(data as Object)
                 msg = data.user_info.message
             end if
             m.loginError.text = msg
-            m.loginButton.setFocus(true)
+            m.loginView.setFocus(true)
+            m.loginFieldIndex = 0
+            updateLoginFocus()
         end if
         return
     end if
@@ -285,6 +297,102 @@ sub showHome()
     m.navGroup.visible = true
     m.loginActions.visible = true
     m.navHome.setFocus(true)
+end sub
+
+sub updateLoginFocus()
+    focusRect = m.top.findNode("loginFocusRect")
+    if focusRect = invalid then return
+
+    if m.loginFieldIndex = 0
+        focusRect.translation = "[344,281]"
+    else if m.loginFieldIndex = 1
+        focusRect.translation = "[344,374]"
+    else if m.loginFieldIndex = 2
+        focusRect.translation = "[344,467]"
+    else
+        focusRect.translation = "[344,552]"
+    end if
+end sub
+
+sub editServer()
+    openLoginKeyboard("server", m.serverInput)
+end sub
+
+sub editUser()
+    openLoginKeyboard("user", m.userInput)
+end sub
+
+sub editPass()
+    openLoginKeyboard("pass", m.passInput)
+end sub
+
+sub openLoginKeyboard(kind as String, target as Object)
+    m.editTarget = kind
+    m.editTargetButton = target
+
+    dlg = CreateObject("roSGNode", "StandardKeyboardDialog")
+    dlg.title = "WRB-TV"
+    dlg.message = [ "Digite usando o controle remoto." ]
+    dlg.buttons = [ "CONFIRMAR", "CANCELAR" ]
+    dlg.keyboardDomain = "generic"
+
+    value = ""
+    if kind = "server"
+        value = m.server
+    else if kind = "user"
+        value = m.user
+    else if kind = "pass"
+        value = m.pass
+        dlg.keyboardDomain = "password"
+    end if
+
+    dlg.text = value
+    dlg.observeFieldScoped("buttonSelected", "loginKeyboardSelected")
+    m.activeKeyboard = dlg
+    m.top.dialog = dlg
+end sub
+
+sub loginKeyboardSelected()
+    dlg = m.activeKeyboard
+    if dlg = invalid then return
+
+    idx = dlg.buttonSelected
+    value = dlg.text
+    target = m.editTargetButton
+
+    if idx = 0
+        if value = invalid then value = ""
+
+        if m.editTarget = "server"
+            m.server = value
+            if Len(value) = 0 then
+                m.serverInput.text = "http://servidor:porta"
+            else
+                m.serverInput.text = value
+            end if
+        else if m.editTarget = "user"
+            m.user = value
+            if Len(value) = 0 then
+                m.userInput.text = "Seu usuário"
+            else
+                m.userInput.text = value
+            end if
+        else if m.editTarget = "pass"
+            m.pass = value
+            if Len(value) = 0 then
+                m.passInput.text = "Sua senha"
+            else
+                m.passInput.text = "********"
+            end if
+        end if
+    end if
+
+    dlg.close = true
+    m.top.dialog = invalid
+    m.activeKeyboard = invalid
+    m.editTarget = ""
+    m.editTargetButton = invalid
+    updateLoginFocus()
 end sub
 
 sub editServer()
@@ -598,42 +706,43 @@ sub logout()
     m.serverInput.text = "http://servidor:porta"
     m.userInput.text = "Seu usuário"
     m.passInput.text = "Sua senha"
-    m.serverInput.setFocus(true)
+    m.loginFieldIndex = 0
+    m.loginView.setFocus(true)
+    updateLoginFocus()
 end sub
 
 function onKeyEvent(key as String, press as Boolean) as Boolean
     if not press then return false
 
-    ' Login: navegação explícita entre campos e botão.
     if m.loginView.visible
         if key = "down"
-            if m.serverInput.hasFocus()
-                m.userInput.setFocus(true)
-                return true
-            else if m.userInput.hasFocus()
-                m.passInput.setFocus(true)
-                return true
-            else if m.passInput.hasFocus()
-                m.loginButton.setFocus(true)
+            if m.loginFieldIndex < 3
+                m.loginFieldIndex = m.loginFieldIndex + 1
+                updateLoginFocus()
                 return true
             end if
         else if key = "up"
-            if m.userInput.hasFocus()
-                m.serverInput.setFocus(true)
-                return true
-            else if m.passInput.hasFocus()
-                m.userInput.setFocus(true)
-                return true
-            else if m.loginButton.hasFocus()
-                m.passInput.setFocus(true)
+            if m.loginFieldIndex > 0
+                m.loginFieldIndex = m.loginFieldIndex - 1
+                updateLoginFocus()
                 return true
             end if
         else if key = "OK" or key = "select"
-            if m.loginButton.hasFocus()
+            if m.loginFieldIndex = 0
+                editServer()
+                return true
+            else if m.loginFieldIndex = 1
+                editUser()
+                return true
+            else if m.loginFieldIndex = 2
+                editPass()
+                return true
+            else
                 onLogin()
                 return true
             end if
         end if
+        return true
     end if
 
     ' Home: navegação previsível pelo D-pad.

@@ -65,8 +65,9 @@ let updateAvailableVersion = null;
 function configureAutoUpdater() {
   if (!app.isPackaged) return;
 
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
+  // Atualização silenciosa: baixa automaticamente e instala na saída do app.
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowDowngrade = false;
   autoUpdater.logger = console;
 
@@ -76,21 +77,7 @@ function configureAutoUpdater() {
 
   autoUpdater.on('update-available', info => {
     updateAvailableVersion = info.version;
-    console.log(`[WRB-TV] Atualização disponível: ${info.version}`);
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-
-    const choice = dialog.showMessageBoxSync(mainWindow, {
-      type: 'info',
-      title: 'Atualização do WRB-TV Player',
-      message: `Uma nova versão do WRB-TV Player está disponível.`,
-      detail: `Versão instalada: ${app.getVersion()}\nNova versão: ${info.version}\n\nVocê pode atualizar agora sem desinstalar o aplicativo. Seus dados e o ID do dispositivo serão preservados.`,
-      buttons: ['Atualizar agora', 'Depois'],
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true
-    });
-
-    if (choice === 0) downloadAndInstallUpdate();
+    console.log(`[WRB-TV] Atualização disponível: ${info.version}. Download automático iniciado.`);
   });
 
   autoUpdater.on('update-not-available', () => {
@@ -104,24 +91,7 @@ function configureAutoUpdater() {
   autoUpdater.on('update-downloaded', info => {
     updateDownloadInProgress = false;
     updateAvailableVersion = info.version;
-    console.log(`[WRB-TV] Atualização baixada: ${info.version}`);
-
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-
-    const choice = dialog.showMessageBoxSync(mainWindow, {
-      type: 'info',
-      title: 'Atualização pronta',
-      message: 'A atualização do WRB-TV Player foi baixada.',
-      detail: `A versão ${info.version} será instalada quando você reiniciar o aplicativo.`,
-      buttons: ['Reiniciar e atualizar', 'Depois'],
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true
-    });
-
-    if (choice === 0) {
-      autoUpdater.quitAndInstall(false, true);
-    }
+    console.log(`[WRB-TV] Atualização ${info.version} baixada. Será instalada automaticamente ao fechar o aplicativo.`);
   });
 
   autoUpdater.on('error', error => {

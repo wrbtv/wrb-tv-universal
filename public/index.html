@@ -2043,7 +2043,7 @@
       activeType: 'live', // módulo principal: 'live' | 'movies' | 'series' | 'home'
       contentSubView: null, // null | 'favorites' | 'history'
       continueContextType: 'all', // 'movies' | 'series' | 'all'
-      session: null, // { server, user, pass }
+      session: null, // { server, user, pass, serverCode, serverCandidates }
       categories: { live: [], movies: [], series: [] },
       activeCategoryId: null,
       cachedItems: {}, // key: type_catId -> array
@@ -2219,15 +2219,64 @@
       };
     });
 
+    // WRB-TV SERVER POOLS / FAILOVER
+    const SERVER_POOLS = Object.freeze({
+      "0022": [
+        "http://rekgol.top",
+        "http://aptxu.com"
+      ],
+      "PFAST": [
+        "http://wrb-tv.top",
+        "http://p1fast.com"
+      ]
+    });
+
+    function normalizeServerUrl(value) {
+      let server = String(value || '').trim();
+      if (!server) return '';
+      if (!/^https?:\/\//i.test(server)) server = 'http://' + server;
+      return server.replace(/\/+$/, '');
+    }
+
+    function getServerCandidates(value) {
+      const raw = String(value || '').trim();
+      const key = raw.toUpperCase();
+      if (SERVER_POOLS[key]) return [...SERVER_POOLS[key]];
+      const normalized = normalizeServerUrl(raw);
+      return normalized ? [normalized] : [];
+    }
+
     // API REQUEST HELPER
     async function apiCall(payload) {
+      const request = { ...payload };
+
+      if (request.action !== 'login' && state.session?.server) {
+        request.server = state.session.server;
+        request.serverCandidates = state.session.serverCandidates || getServerCandidates(state.session.serverCode || state.session.server);
+        if (state.session.serverCode) request.serverCode = state.session.serverCode;
+      }
+
       const res = await fetch('/api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(request)
       });
       const data = await res.json().catch(() => ({ error: 'Resposta inválida do servidor' }));
       if (!res.ok) throw new Error(data.error || `Erro HTTP ${res.status}`);
+
+      if (data.server && state.session) {
+        state.session.server = data.server;
+        state.session.serverCandidates = data.serverCandidates || state.session.serverCandidates || [data.server];
+        if (data.serverCode) state.session.serverCode = data.serverCode;
+        localStorage.setItem('wrbtv_session', JSON.stringify({
+          server: state.session.server,
+          user: state.session.user,
+          pass: state.session.pass,
+          serverCode: state.session.serverCode || null,
+          serverCandidates: state.session.serverCandidates
+        }));
+      }
+
       return data;
     }
 
@@ -2241,22 +2290,36 @@
 
       try {
         if (state.mode === 'xtream') {
-          let server = $('inpServer').value.trim();
+          const rawServer = $('inpServer').value.trim();
           const user = $('inpUser').value.trim();
           const pass = $('inpPass').value.trim();
 
-          if (!server || !user || !pass) throw new Error('Preencha servidor, usuário e senha.');
-          if (!/^https?:\/\//i.test(server)) server = 'http://' + server;
-          server = server.replace(/\/+$/, '');
+          if (!rawServer || !user || !pass) throw new Error('Preencha servidor, usuário e senha.');
+          const serverCode = SERVER_POOLS[rawServer.toUpperCase()] ? rawServer.toUpperCase() : null;
+          const server = serverCode || normalizeServerUrl(rawServer);
+          const serverCandidates = serverCode ? [...SERVER_POOLS[serverCode]] : [server];
 
-          showToast('Validando acesso...', 'info');
-          const res = await apiCall({ action: 'login', server, user, pass });
+          showToast(serverCode ? `Localizando servidor ${serverCode}...` : 'Validando acesso...', 'info');
+          const res = await apiCall({ action: 'login', server, serverCandidates, serverCode, user, pass });
 
           if (!res.auth) throw new Error(res.error || 'Credenciais inválidas');
 
-          state.session = { server, user, pass, info: res.userInfo };
+          state.session = {
+            server: res.server || server,
+            serverCode: res.serverCode || serverCode,
+            serverCandidates: res.serverCandidates || serverCandidates,
+            user,
+            pass,
+            info: res.userInfo
+          };
           state.categories = res.categories;
-          localStorage.setItem('wrbtv_session', JSON.stringify({ server, user, pass }));
+          localStorage.setItem('wrbtv_session', JSON.stringify({
+            server: state.session.server,
+            serverCode: state.session.serverCode,
+            serverCandidates: state.session.serverCandidates,
+            user,
+            pass
+          }));
 
           enterApp();
         } else if (state.mode === 'm3u') {
@@ -2269,9 +2332,22 @@
             showToast('⚡ Link Xtream Codes detectado! Conectando com velocidade máxima...', 'info');
             const res = await apiCall({ action: 'login', server: parsed.server, user: parsed.user, pass: parsed.pass });
             if (!res.auth) throw new Error(res.error || 'Credenciais inválidas no link.');
-            state.session = { server: parsed.server, user: parsed.user, pass: parsed.pass, info: res.userInfo };
+            state.session = {
+              server: res.server || parsed.server,
+              serverCode: res.serverCode || null,
+              serverCandidates: res.serverCandidates || [parsed.server],
+              user: parsed.user,
+              pass: parsed.pass,
+              info: res.userInfo
+            };
             state.categories = res.categories;
-            localStorage.setItem('wrbtv_session', JSON.stringify({ server: parsed.server, user: parsed.user, pass: parsed.pass }));
+            localStorage.setItem('wrbtv_session', JSON.stringify({
+              server: state.session.server,
+              serverCode: state.session.serverCode,
+              serverCandidates: state.session.serverCandidates,
+              user: parsed.user,
+              pass: parsed.pass
+            }));
             enterApp();
           } else {
             showToast('Baixando lista M3U (aguarde alguns segundos)...', 'info');
@@ -3112,6 +3188,41 @@
     if ($('fullLiveNextChannel')) $('fullLiveNextChannel').onclick = (e) => { e.stopPropagation(); changeLiveChannelByIndex(1); };
     if ($('fullLiveChannelSelect')) $('fullLiveChannelSelect').onchange = (e) => { e.stopPropagation(); changeLiveChannelById(e.target.value); };
 
+    function buildStreamUrlForServer(rawUrl, server) {
+      if (!rawUrl || !server) return rawUrl;
+      try {
+        const source = new URL(rawUrl, window.location.origin);
+        const target = new URL(normalizeServerUrl(server));
+        source.protocol = target.protocol;
+        source.hostname = target.hostname;
+        source.port = target.port;
+        return source.href;
+      } catch {
+        return rawUrl;
+      }
+    }
+
+    function getFailoverServers() {
+      const candidates = state.session?.serverCandidates || getServerCandidates(state.session?.serverCode || state.session?.server);
+      const active = normalizeServerUrl(state.session?.server);
+      return [...new Set(candidates.map(normalizeServerUrl).filter(Boolean))].filter(x => x !== active);
+    }
+
+    function activateServer(server) {
+      const normalized = normalizeServerUrl(server);
+      if (!normalized || !state.session) return;
+      const current = state.session.serverCandidates || [];
+      state.session.server = normalized;
+      state.session.serverCandidates = [normalized, ...current.map(normalizeServerUrl).filter(x => x && x !== normalized)];
+      localStorage.setItem('wrbtv_session', JSON.stringify({
+        server: state.session.server,
+        serverCode: state.session.serverCode || null,
+        serverCandidates: state.session.serverCandidates,
+        user: state.session.user,
+        pass: state.session.pass
+      }));
+    }
+
     // CINEMA VIDEO PLAYER ENGINE (COM RETOMADA E HISTÓRICO NETFLIX)
     function playVideo(title, url, fallbackTsUrl, meta = null) {
       const overlay = $('player-overlay');
@@ -3254,6 +3365,31 @@
         }
       };
 
+      let serverFailoverAttempted = false;
+
+      const tryServerFailover = (failedUrl, retryType = 'stream') => {
+        if (serverFailoverAttempted || !state.session?.serverCandidates?.length) return false;
+        const alternatives = getFailoverServers();
+        if (!alternatives.length) return false;
+
+        const previousServer = state.session?.server;
+        const nextServer = alternatives[0];
+        const switchedUrl = buildStreamUrlForServer(failedUrl, nextServer);
+        if (!switchedUrl || switchedUrl === failedUrl) return false;
+
+        serverFailoverAttempted = true;
+        console.warn(`[WRB-TV] ${retryType} falhou em ${previousServer}. Tentando ${nextServer}`);
+        activateServer(nextServer);
+
+        if (state.hlsInstance) { state.hlsInstance.destroy(); state.hlsInstance = null; }
+        if (state.mpegtsInstance) { state.mpegtsInstance.destroy(); state.mpegtsInstance = null; }
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+        playStream(switchedUrl);
+        return true;
+      };
+
       const playStream = (streamUrl) => {
         setupTracking();
         const finalUrl = getProxiedStreamUrl(streamUrl);
@@ -3269,30 +3405,31 @@
           state.hlsInstance.loadSource(finalUrl);
           state.hlsInstance.attachMedia(v);
           state.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+            activateServer(new URL(streamUrl).origin);
             v.play().catch(e => console.warn('HLS autoplay blocked:', e));
           });
           state.hlsInstance.on(Hls.Events.ERROR, (event, data) => {
-            if (data.fatal) {
-              console.warn('HLS erro fatal:', data.type, data.details);
-              switch (data.type) {
-                case Hls.ErrorTypes.NETWORK_ERROR:
-                  console.warn('HLS recuperando erro de rede...');
-                  state.hlsInstance.startLoad();
-                  break;
-                case Hls.ErrorTypes.MEDIA_ERROR:
-                  console.warn('HLS recuperando erro de mídia...');
-                  state.hlsInstance.recoverMediaError();
-                  break;
-                default:
-                  if (fallbackTsUrl && streamUrl !== fallbackTsUrl) {
-                    console.warn('HLS irrecuperável, tentando fallback TS...');
-                    state.hlsInstance.destroy();
-                    state.hlsInstance = null;
-                    playStream(fallbackTsUrl);
-                  }
-                  break;
-              }
+            if (!data.fatal) return;
+            console.warn('HLS erro fatal:', data.type, data.details);
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              console.warn('HLS recuperando erro de rede...');
+              state.hlsInstance.startLoad();
+              setTimeout(() => tryServerFailover(streamUrl, 'HLS'), 3000);
+              return;
             }
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              console.warn('HLS recuperando erro de mídia...');
+              state.hlsInstance.recoverMediaError();
+              return;
+            }
+            if (fallbackTsUrl && streamUrl !== fallbackTsUrl) {
+              console.warn('HLS irrecuperável, tentando fallback TS...');
+              state.hlsInstance.destroy();
+              state.hlsInstance = null;
+              playStream(fallbackTsUrl);
+              return;
+            }
+            tryServerFailover(streamUrl, 'HLS');
           });
         } else if (isTs && window.mpegts && mpegts.isSupported()) {
           state.mpegtsInstance = mpegts.createPlayer({
@@ -3300,12 +3437,27 @@
             isLive: meta?.type === 'live',
             url: finalUrl
           });
+          state.mpegtsInstance.on(mpegts.Events.ERROR, () => {
+            tryServerFailover(streamUrl, 'MPEG-TS');
+          });
           state.mpegtsInstance.attachMediaElement(v);
           state.mpegtsInstance.load();
-          state.mpegtsInstance.play().catch(e => console.warn('mpegts autoplay blocked:', e));
+          state.mpegtsInstance.play().catch(e => {
+            console.warn('mpegts autoplay blocked:', e);
+            tryServerFailover(streamUrl, 'MPEG-TS');
+          });
         } else {
           v.src = finalUrl;
-          v.play().catch(e => console.warn('Native video autoplay blocked:', e));
+          v.onerror = () => {
+            if (fallbackTsUrl && streamUrl !== fallbackTsUrl) {
+              playStream(fallbackTsUrl);
+              return;
+            }
+            tryServerFailover(streamUrl, 'Vídeo');
+          };
+          v.play().catch(e => {
+            console.warn('Native video autoplay blocked:', e);
+          });
         }
       };
 
@@ -3765,9 +3917,19 @@
         try {
           const sess = JSON.parse(saved);
           if (sess.server && sess.user && sess.pass) {
-            $('inpServer').value = sess.server;
+            $('inpServer').value = sess.serverCode || sess.server;
             $('inpUser').value = sess.user;
             $('inpPass').value = sess.pass;
+            state.session = {
+              server: normalizeServerUrl(sess.server),
+              serverCode: sess.serverCode || null,
+              serverCandidates: Array.isArray(sess.serverCandidates) && sess.serverCandidates.length
+                ? sess.serverCandidates.map(normalizeServerUrl).filter(Boolean)
+                : getServerCandidates(sess.serverCode || sess.server),
+              user: sess.user,
+              pass: sess.pass,
+              info: null
+            };
           }
         } catch (_) {}
       }

@@ -1,3 +1,46 @@
+const SERVER_POOLS = Object.freeze({
+  "0022": [
+    "http://rekgol.top",
+    "http://aptxu.com"
+  ],
+  "PFAST": [
+    "http://wrb-tv.top",
+    "http://p1fast.com"
+  ]
+});
+
+const REQUEST_TIMEOUT_MS = 8000;
+
+function normalizeServer(value) {
+  let server = String(value || "").trim();
+  if (!server) return "";
+  if (!/^https?:\/\//i.test(server)) server = `http://${server}`;
+  return server.replace(/\/+$/, "");
+}
+
+function resolveServerCandidates(server, providedCandidates = []) {
+  const raw = String(server || "").trim();
+  const key = raw.toUpperCase();
+
+  if (SERVER_POOLS[key]) return [...SERVER_POOLS[key]];
+
+  const candidates = [raw, ...(Array.isArray(providedCandidates) ? providedCandidates : [])]
+    .map(normalizeServer)
+    .filter(Boolean);
+
+  return [...new Set(candidates)];
+}
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function onRequestOptions() {
   return new Response(null, {
     status: 204,
@@ -30,10 +73,14 @@ export async function onRequestPost(context) {
   }
 
   try {
-    const server = String(b.server || "").replace(/\/+$/, "");
+    const requestedServer = String(b.server || "").trim();
+    const serverCandidates = resolveServerCandidates(requestedServer, b.serverCandidates);
     const u = String(b.user || "");
     const p = String(b.pass || "");
-    const base = `${server}/player_api.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`;
+
+    if (b.action !== "m3u" && (!serverCandidates.length || !u || !p)) {
+      return Response.json({ error: "Servidor, usuário e senha são obrigatórios." }, { status: 400, headers: jsonHeaders });
+    }
 
     const userAgents = [
       "IPTVSmartersPro/1.0.0",
@@ -42,9 +89,10 @@ export async function onRequestPost(context) {
     ];
 
     async function smartFetch(url) {
+      let lastResponse = null;
       for (const ua of userAgents) {
         try {
-          const r = await fetch(url, {
+          const r = await fetchWithTimeout(url, {
             redirect: "follow",
             headers: {
               "user-agent": ua,
@@ -52,53 +100,93 @@ export async function onRequestPost(context) {
               "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
             }
           });
+          lastResponse = r;
           if (r.ok || r.status !== 403) return r;
         } catch {
           // continuar tentando
         }
       }
-      return fetch(url, {
-        redirect: "follow",
-        headers: { "user-agent": userAgents[0], "accept": "*/*" }
-      });
+      if (lastResponse) return lastResponse;
+      throw new Error("Tempo esgotado ao conectar ao servidor.");
+    }
+
+    async function fetchXtreamFromServer(server, query) {
+      const base = `${server}/player_api.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`;
+      const url = `${base}&${query}`;
+      const r = await smartFetch(url);
+      if (!r.ok) return { ok: false, status: r.status, data: null };
+      try {
+        return { ok: true, status: r.status, data: await r.json() };
+      } catch {
+        return { ok: false, status: 502, data: null };
+      }
     }
 
     async function fetchXtream(query) {
-      const url = `${base}&${query}`;
-      try {
-        const r = await smartFetch(url);
-        if (!r.ok) return [];
-        return await r.json();
-      } catch {
-        return [];
+      for (const candidate of serverCandidates) {
+        try {
+          const result = await fetchXtreamFromServer(candidate, query);
+          if (result.ok) return { ...result, server: candidate };
+        } catch {
+          // tenta o próximo servidor do pool
+        }
       }
+      return { ok: false, status: 502, data: null, server: null };
     }
 
     // 1. LOGIN & CATEGORIAS RÁPIDAS
     if (b.action === "login") {
-      if (!/^https?:\/\//i.test(server) || !u || !p) {
-        return Response.json({ error: "Servidor, usuário e senha são obrigatórios." }, { status: 400, headers: jsonHeaders });
+      let selectedServer = null;
+      let auth = null;
+      let lastError = "Não foi possível conectar aos servidores configurados.";
+
+      for (const candidate of serverCandidates) {
+        try {
+          const base = `${candidate}/player_api.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`;
+          const authR = await smartFetch(base);
+
+          if (!authR.ok) {
+            lastError = `Servidor respondeu HTTP ${authR.status} ao validar o acesso.`;
+            continue;
+          }
+
+          const candidateAuth = await authR.json();
+          if (Number(candidateAuth?.user_info?.auth) === 1) {
+            selectedServer = candidate;
+            auth = candidateAuth;
+            break;
+          }
+
+          lastError = candidateAuth?.user_info?.message || "Usuário ou senha inválidos.";
+        } catch (error) {
+          lastError = error?.message || lastError;
+        }
       }
 
-      const authR = await smartFetch(base);
-
-      if (!authR.ok) {
-        return Response.json({ error: `Servidor respondeu HTTP ${authR.status} ao validar o acesso.` }, { status: 502, headers: jsonHeaders });
+      if (!selectedServer || !auth) {
+        return Response.json({ auth: false, error: lastError }, { status: 502, headers: jsonHeaders });
       }
 
-      const auth = await authR.json();
-      if (Number(auth?.user_info?.auth) !== 1) {
-        return Response.json({ auth: false, error: auth?.user_info?.message || "Usuário ou senha inválidos." }, { status: 401, headers: jsonHeaders });
+      const selectedCandidates = [selectedServer, ...serverCandidates.filter(x => x !== selectedServer)];
+
+      async function fetchSelectedXtream(query) {
+        const base = `${selectedServer}/player_api.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`;
+        const r = await smartFetch(`${base}&${query}`);
+        if (!r.ok) return [];
+        try { return await r.json(); } catch { return []; }
       }
 
       const [liveCats, vodCats, seriesCats] = await Promise.all([
-        fetchXtream("action=get_live_categories"),
-        fetchXtream("action=get_vod_categories"),
-        fetchXtream("action=get_series_categories")
+        fetchSelectedXtream("action=get_live_categories"),
+        fetchSelectedXtream("action=get_vod_categories"),
+        fetchSelectedXtream("action=get_series_categories")
       ]);
 
       return Response.json({
         auth: true,
+        server: selectedServer,
+        serverCode: SERVER_POOLS[requestedServer.toUpperCase()] ? requestedServer.toUpperCase() : null,
+        serverCandidates: selectedCandidates,
         userInfo: auth.user_info,
         serverInfo: auth.server_info,
         categories: {
@@ -118,7 +206,13 @@ export async function onRequestPost(context) {
       else if (type === "series") actionName = "get_series";
 
       const query = catId && catId !== "*" ? `action=${actionName}&category_id=${encodeURIComponent(catId)}` : `action=${actionName}`;
-      const items = await fetchXtream(query);
+      const result = await fetchXtream(query);
+      if (!result.ok) {
+        return Response.json({ error: "Não foi possível carregar o conteúdo em nenhum dos servidores disponíveis." }, { status: 502, headers: jsonHeaders });
+      }
+
+      const items = result.data;
+      const activeServer = result.server || serverCandidates[0];
 
       let formatted = [];
       if (Array.isArray(items)) {
@@ -128,8 +222,8 @@ export async function onRequestPost(context) {
             name: x.name,
             categoryId: String(x.category_id ?? ""),
             logo: x.stream_icon || "",
-            url: `${server}/live/${encodeURIComponent(u)}/${encodeURIComponent(p)}/${x.stream_id}.m3u8`,
-            urlTs: `${server}/live/${encodeURIComponent(u)}/${encodeURIComponent(p)}/${x.stream_id}.ts`,
+            url: `${activeServer}/live/${encodeURIComponent(u)}/${encodeURIComponent(p)}/${x.stream_id}.m3u8`,
+            urlTs: `${activeServer}/live/${encodeURIComponent(u)}/${encodeURIComponent(p)}/${x.stream_id}.ts`,
             epgId: x.epg_channel_id || "",
             type: "live"
           }));
@@ -141,7 +235,7 @@ export async function onRequestPost(context) {
             logo: x.stream_icon || "",
             rating: x.rating || x.rating_5based || "",
             year: x.year || "",
-            url: `${server}/movie/${encodeURIComponent(u)}/${encodeURIComponent(p)}/${x.stream_id}.${x.container_extension || "mp4"}`,
+            url: `${activeServer}/movie/${encodeURIComponent(u)}/${encodeURIComponent(p)}/${x.stream_id}.${x.container_extension || "mp4"}`,
             containerExtension: x.container_extension || "mp4",
             type: "movies"
           }));
@@ -161,7 +255,7 @@ export async function onRequestPost(context) {
         }
       }
 
-      return Response.json({ success: true, items: formatted }, { headers: jsonHeaders });
+      return Response.json({ success: true, server: activeServer, serverCandidates: [activeServer, ...serverCandidates.filter(x => x !== activeServer)], items: formatted }, { headers: jsonHeaders });
     }
 
     // 3. DETALHES DE UMA SÉRIE
@@ -169,7 +263,13 @@ export async function onRequestPost(context) {
       const seriesId = b.seriesId;
       if (!seriesId) return Response.json({ error: "ID da série é obrigatório." }, { status: 400, headers: jsonHeaders });
 
-      const info = await fetchXtream(`action=get_series_info&series_id=${encodeURIComponent(seriesId)}`);
+      const result = await fetchXtream(`action=get_series_info&series_id=${encodeURIComponent(seriesId)}`);
+      if (!result.ok) {
+        return Response.json({ error: "Não foi possível carregar os detalhes da série em nenhum dos servidores disponíveis." }, { status: 502, headers: jsonHeaders });
+      }
+
+      const info = result.data || {};
+      const activeServer = result.server || serverCandidates[0];
       const seasonsData = info.seasons || [];
       const episodesData = info.episodes || {};
       const formattedEpisodes = {};
@@ -182,13 +282,15 @@ export async function onRequestPost(context) {
             title: ep.title || `Episódio ${ep.episode_num}`,
             containerExtension: ep.container_extension || "mp4",
             info: ep.info || {},
-            url: `${server}/series/${encodeURIComponent(u)}/${encodeURIComponent(p)}/${ep.id}.${ep.container_extension || "mp4"}`
+            url: `${activeServer}/series/${encodeURIComponent(u)}/${encodeURIComponent(p)}/${ep.id}.${ep.container_extension || "mp4"}`
           }));
         }
       }
 
       return Response.json({
         success: true,
+        server: activeServer,
+        serverCandidates: [activeServer, ...serverCandidates.filter(x => x !== activeServer)],
         info: info.info || {},
         seasons: seasonsData,
         episodes: formattedEpisodes

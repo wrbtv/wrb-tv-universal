@@ -94,7 +94,8 @@
           "Type": "Application"
         }
       },
-      "syncDesktopName": true
+      "syncDesktopName": true,
+      "icon": "build/logo-source.png"
     },
     "mac": {
       "target": [

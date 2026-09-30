@@ -2749,7 +2749,14 @@
 
     function revealAppFullscreenExit() {
       const btn = $('appFullscreenExit');
-      if (!btn || !isAppNativeFullscreen() || $('player-overlay')?.classList.contains('show')) return;
+      const playerOpen = $('player-overlay')?.classList.contains('show');
+      const miniPlayerOpen = $('miniPlayerPanel')?.classList.contains('active');
+      // O X do modo TV pertence somente à tela principal. Nunca deve surgir
+      // sobre o mini player, FullPlayer ou controles de reprodução.
+      if (!btn || !isAppNativeFullscreen() || playerOpen || miniPlayerOpen) {
+        btn?.classList.remove('visible');
+        return;
+      }
       btn.classList.add('visible');
       clearTimeout(appFullscreenExitTimer);
       appFullscreenExitTimer = setTimeout(() => btn.classList.remove('visible'), 2600);
@@ -2788,14 +2795,18 @@
     }
 
     document.addEventListener('mousemove', (e) => {
-      if (!isAppNativeFullscreen() || $('player-overlay')?.classList.contains('show')) return;
-
-      // No modo TV, qualquer movimento na faixa superior revela o X
-      // no canto superior direito. Ele desaparece novamente quando
-      // o cursor deixa a faixa superior.
-      const inTopArea = e.clientY <= 120;
+      const playerOpen = $('player-overlay')?.classList.contains('show');
+      const miniPlayerOpen = $('miniPlayerPanel')?.classList.contains('active');
       const btn = $('appFullscreenExit');
-      if (inTopArea) revealAppFullscreenExit();
+
+      if (!isAppNativeFullscreen() || playerOpen || miniPlayerOpen) {
+        btn?.classList.remove('visible');
+        return;
+      }
+
+      // O X da janela só aparece no topo central da tela principal.
+      const inTopCenter = Math.abs(e.clientX - window.innerWidth / 2) <= 140 && e.clientY <= 120;
+      if (inTopCenter) revealAppFullscreenExit();
       else if (!e.buttons && btn) btn.classList.remove('visible');
     });
 

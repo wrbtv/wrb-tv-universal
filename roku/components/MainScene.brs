@@ -1,27 +1,37 @@
 sub init()
     m.top.backExitsScene = false
+    m.top.palette = CreateObject("roSGNode", "RSGPalette")
+    m.top.palette.colors = {
+        DialogBackgroundColor: "0x071019FF",
+        DialogItemColor: "0x00D2FFFF",
+        DialogTextColor: "0xF2F7FBFF",
+        DialogFocusColor: "0x00BDEBFF",
+        DialogFocusItemColor: "0x061019FF",
+        DialogSecondaryTextColor: "0x71869AFF",
+        DialogSecondaryItemColor: "0x103042FF",
+        DialogInputFieldColor: "0x142B38FF",
+        DialogKeyboardColor: "0x071019FF",
+        DialogFootprintColor: "0x16485AFF"
+    }
     m.top.observeField("apiBase", "onApiBase")
 
     m.loginView = m.top.findNode("loginView")
     m.homeView = m.top.findNode("homeView")
     m.contentView = m.top.findNode("contentView")
     m.blockedView = m.top.findNode("blockedView")
-    m.appHeader = m.top.findNode("appHeader")
 
     m.loginButton = m.top.findNode("loginButton")
     m.serverInput = m.top.findNode("serverInput")
     m.userInput = m.top.findNode("userInput")
     m.passInput = m.top.findNode("passInput")
     m.loginError = m.top.findNode("loginError")
-    m.serverFocus = m.top.findNode("serverFocus")
-    m.userFocus = m.top.findNode("userFocus")
-    m.passFocus = m.top.findNode("passFocus")
+    m.navGroup = m.top.findNode("navGroup")
+    m.loginActions = m.top.findNode("loginActions")
 
     m.navHome = m.top.findNode("navHome")
     m.navLive = m.top.findNode("navLive")
     m.navMovies = m.top.findNode("navMovies")
     m.navSeries = m.top.findNode("navSeries")
-    m.loginActions = m.top.findNode("loginActions")
 
     m.homeLive = m.top.findNode("homeLive")
     m.homeMovies = m.top.findNode("homeMovies")
@@ -69,29 +79,26 @@ sub init()
     m.refreshTimer.observeField("fire", "heartbeat")
     m.refreshTimer.control = "start"
 
-    m.loginButton.observeField("buttonSelected", "onLogin")
-    m.serverInput.observeField("buttonSelected", "editServer")
-    m.userInput.observeField("buttonSelected", "editUser")
-    m.passInput.observeField("buttonSelected", "editPass")
-    m.navHome.observeField("buttonSelected", "showHome")
-    m.navLive.observeField("buttonSelected", "showLive")
-    m.navMovies.observeField("buttonSelected", "showMovies")
-    m.navSeries.observeField("buttonSelected", "showSeries")
-    m.homeLive.observeField("buttonSelected", "showLive")
-    m.homeMovies.observeField("buttonSelected", "showMovies")
-    m.homeSeries.observeField("buttonSelected", "showSeries")
-    m.homeExit.observeField("buttonSelected", "logout")
+    m.top.findNode("navHome").observeField("buttonSelected", "showHome")
+    m.top.findNode("navLive").observeField("buttonSelected", "showLive")
+    m.top.findNode("navMovies").observeField("buttonSelected", "showMovies")
+    m.top.findNode("navSeries").observeField("buttonSelected", "showSeries")
+    m.top.findNode("homeLive").observeField("buttonSelected", "showLive")
+    m.top.findNode("homeMovies").observeField("buttonSelected", "showMovies")
+    m.top.findNode("homeSeries").observeField("buttonSelected", "showSeries")
+    m.top.findNode("homeExit").observeField("buttonSelected", "logout")
     m.top.findNode("miniFull").observeField("buttonSelected", "openFullPlayer")
     m.categories.observeField("itemSelected", "categorySelected")
     m.grid.observeField("itemSelected", "gridSelected")
 
     m.serverInput.setFocus(true)
-    updateLoginFocus()
     checkDevice()
 end sub
 
 sub onApiBase()
-    if m.top.apiBase <> invalid and Len(m.top.apiBase) > 0 then m.apiBase = m.top.apiBase
+    if m.top.apiBase <> invalid and Len(m.top.apiBase) > 0 then
+        m.apiBase = m.top.apiBase
+    end if
 end sub
 
 sub request(kind as String, url as String, method as String, body as String)
@@ -107,6 +114,7 @@ end sub
 
 sub requestFinished(evt as Object)
     if not evt.getData() then return
+
     task = evt.getNode()
     kind = m.pendingKind
     response = task.response
@@ -121,7 +129,7 @@ sub requestFinished(evt as Object)
     if Len(response) > 0 then data = ParseJson(response)
 
     if kind = "device"
-        if data = invalid
+        if data = invalid then
             showBlocked("Não foi possível consultar a autorização do dispositivo.")
             return
         end if
@@ -129,24 +137,34 @@ sub requestFinished(evt as Object)
         if data.authorized = true
             m.authorized = true
             m.blockedView.visible = false
-            m.appHeader.visible = false
+            m.navGroup.visible = false
+            m.loginActions.visible = false
             m.loginView.visible = true
             m.loginFieldIndex = 0
-            m.serverInput.setFocus(true)
             updateLoginFocus()
         else
-            showBlocked("Este dispositivo não está autorizado.")
+            m.authorized = false
+            m.loginView.visible = false
+            m.homeView.visible = false
+            m.contentView.visible = false
+            m.top.findNode("blockedId").text = "ID: " + m.deviceId
+            m.blockedView.visible = true
         end if
+
     else if kind = "heartbeat"
         if data <> invalid and data.authorized <> true
             showBlocked("Este dispositivo foi desativado pelo painel.")
         end if
+
     else if kind = "login"
         handleLoginResponse(data)
+
     else if kind = "categories"
         loadCategories(data)
+
     else if kind = "content"
         loadContent(data)
+
     else if kind = "seriesInfo"
         playFirstEpisode(data)
     end if
@@ -162,14 +180,17 @@ sub handleLoginResponse(data as Object)
                 msg = data.user_info.message
             end if
             m.loginError.text = msg
-            m.loginButton.setFocus(true)
+            m.loginView.setFocus(true)
+            m.loginFieldIndex = 0
+            updateLoginFocus()
         end if
         return
     end if
 
     m.loginError.text = ""
     m.userBadge.text = m.user
-    m.appHeader.visible = true
+    m.navGroup.visible = true
+    m.loginActions.visible = true
     showHome()
     heartbeat()
 end sub
@@ -193,7 +214,6 @@ sub showBlocked(msg as String)
     m.loginView.visible = false
     m.homeView.visible = false
     m.contentView.visible = false
-    m.appHeader.visible = false
     m.video.control = "stop"
     m.top.findNode("blockedText").text = msg
     m.top.findNode("blockedId").text = "ID: " + m.deviceId
@@ -212,6 +232,7 @@ end sub
 
 sub heartbeat()
     if not m.authorized then return
+
     body = {
         device_id: m.deviceId,
         app_id: "WRB-PLAY-ROKU",
@@ -227,7 +248,9 @@ function candidatesFor(server as String) as Object
     key = UCase(s)
     if key = "0022" then return ["http://rekgol.top", "http://aptxu.com"]
     if key = "PFAST" then return ["http://wrb-tv.top", "http://p1fast.com"]
-    if not s.StartsWith("http://") and not s.StartsWith("https://") then s = "http://" + s
+    if not s.StartsWith("http://") and not s.StartsWith("https://") then
+        s = "http://" + s
+    end if
     return [s]
 end function
 
@@ -237,12 +260,11 @@ sub onLogin()
         return
     end if
 
-    m.loginError.text = ""
-    m.loginCandidates = candidatesFor(m.server)
-    if Len(m.server) = 0
-        m.server = ""
-    end if
-    if Len(m.user) = 0 or Len(m.pass) = 0 or Len(m.server) = 0
+    m.server = m.server.Trim()
+    m.user = m.user.Trim()
+    m.pass = m.pass.Trim()
+
+    if Len(m.server) = 0 or Len(m.user) = 0 or Len(m.pass) = 0
         m.loginError.text = "Preencha servidor, usuário e senha."
         return
     end if
@@ -254,32 +276,41 @@ sub onLogin()
 end sub
 
 sub tryLoginCandidate()
-    if m.loginIndex >= m.loginCandidates.Count()
+    if m.loginIndex >= m.loginCandidates.Count() then
         m.loginError.text = "Não foi possível conectar ao servidor."
         return
     end if
+
     candidate = m.loginCandidates[m.loginIndex]
     m.activeServer = candidate
+
     url = candidate + "/player_api.php?username=" + m.user.EncodeUriComponent() + "&password=" + m.pass.EncodeUriComponent()
     m.loginIndex = m.loginIndex + 1
     request("login", url, "GET", "")
 end sub
 
+sub showHome()
+    m.loginView.visible = false
+    m.contentView.visible = false
+    m.blockedView.visible = false
+    m.homeView.visible = true
+    m.navGroup.visible = true
+    m.loginActions.visible = true
+    m.navHome.setFocus(true)
+end sub
+
 sub updateLoginFocus()
-    m.serverFocus.visible = false
-    m.userFocus.visible = false
-    m.passFocus.visible = false
+    focusRect = m.top.findNode("loginFocusRect")
+    if focusRect = invalid then return
+
     if m.loginFieldIndex = 0
-        m.serverFocus.visible = true
-        m.serverInput.setFocus(true)
+        focusRect.translation = "[344,281]"
     else if m.loginFieldIndex = 1
-        m.userFocus.visible = true
-        m.userInput.setFocus(true)
+        focusRect.translation = "[344,374]"
     else if m.loginFieldIndex = 2
-        m.passFocus.visible = true
-        m.passInput.setFocus(true)
+        focusRect.translation = "[344,467]"
     else
-        m.loginButton.setFocus(true)
+        focusRect.translation = "[344,552]"
     end if
 end sub
 
@@ -301,19 +332,105 @@ sub openLoginKeyboard(kind as String, target as Object)
 
     dlg = CreateObject("roSGNode", "StandardKeyboardDialog")
     dlg.title = "WRB-TV"
-    dlg.message = ["Digite usando o controle remoto."]
-    dlg.buttons = ["CONFIRMAR", "CANCELAR"]
+    dlg.message = [ "Digite usando o controle remoto." ]
+    dlg.buttons = [ "CONFIRMAR", "CANCELAR" ]
+    dlg.keyboardDomain = "generic"
 
+    value = ""
     if kind = "server"
-        dlg.keyboardDomain = "generic"
-        dlg.text = m.server
+        value = m.server
     else if kind = "user"
-        dlg.keyboardDomain = "generic"
-        dlg.text = m.user
-    else
+        value = m.user
+    else if kind = "pass"
+        value = m.pass
         dlg.keyboardDomain = "password"
-        dlg.text = m.pass
-        if dlg.textEditBox <> invalid then dlg.textEditBox.secureMode = true
+    end if
+
+    dlg.text = value
+    dlg.observeFieldScoped("buttonSelected", "loginKeyboardSelected")
+    m.activeKeyboard = dlg
+    m.top.dialog = dlg
+end sub
+
+sub loginKeyboardSelected()
+    dlg = m.activeKeyboard
+    if dlg = invalid then return
+
+    idx = dlg.buttonSelected
+    value = dlg.text
+    target = m.editTargetButton
+
+    if idx = 0
+        if value = invalid then value = ""
+
+        if m.editTarget = "server"
+            m.server = value
+            if Len(value) = 0 then
+                m.serverInput.text = "http://servidor:porta"
+            else
+                m.serverInput.text = value
+            end if
+        else if m.editTarget = "user"
+            m.user = value
+            if Len(value) = 0 then
+                m.userInput.text = "Seu usuário"
+            else
+                m.userInput.text = value
+            end if
+        else if m.editTarget = "pass"
+            m.pass = value
+            if Len(value) = 0 then
+                m.passInput.text = "Sua senha"
+            else
+                m.passInput.text = "********"
+            end if
+        end if
+    end if
+
+    dlg.close = true
+    m.top.dialog = invalid
+    m.activeKeyboard = invalid
+    m.editTarget = ""
+    m.editTargetButton = invalid
+    updateLoginFocus()
+end sub
+
+sub editServer()
+    openLoginKeyboard("server", m.serverInput)
+end sub
+
+sub editUser()
+    openLoginKeyboard("user", m.userInput)
+end sub
+
+sub editPass()
+    openLoginKeyboard("pass", m.passInput)
+end sub
+
+sub openLoginKeyboard(kind as String, target as Object)
+    m.editTarget = kind
+    m.editTargetButton = target
+
+    dlg = CreateObject("roSGNode", "StandardKeyboardDialog")
+    dlg.title = "WRB-TV"
+    dlg.message = "Use o controle remoto para preencher este campo."
+    dlg.buttons = ["OK", "Cancelar"]
+
+    value = ""
+    if kind = "server"
+        value = m.server
+    else if kind = "user"
+        value = m.user
+    else if kind = "pass"
+        value = m.pass
+    end if
+
+    dlg.text = value
+
+    if kind = "pass"
+        if dlg.keyboard <> invalid and dlg.keyboard.textEditBox <> invalid
+            dlg.keyboard.textEditBox.secureMode = true
+        end if
     end if
 
     dlg.observeField("buttonSelected", "loginKeyboardSelected")
@@ -322,23 +439,36 @@ sub openLoginKeyboard(kind as String, target as Object)
 end sub
 
 sub loginKeyboardSelected()
-    dlg = m.activeKeyboard
-    if dlg = invalid then return
-    idx = dlg.buttonSelected
-    value = dlg.text
+    if m.activeKeyboard = invalid then return
+
+    idx = m.activeKeyboard.buttonSelected
+    value = m.activeKeyboard.text
     target = m.editTargetButton
 
     if idx = 0
         if value = invalid then value = ""
+
         if m.editTarget = "server"
             m.server = value
-            m.serverInput.text = IIF(Len(value) > 0, value, "http://servidor:porta")
+            if Len(value) = 0
+                m.serverInput.text = "http://servidor:porta"
+            else
+                m.serverInput.text = value
+            end if
         else if m.editTarget = "user"
             m.user = value
-            m.userInput.text = IIF(Len(value) > 0, value, "Seu usuário")
+            if Len(value) = 0
+                m.userInput.text = "Seu usuário"
+            else
+                m.userInput.text = value
+            end if
         else if m.editTarget = "pass"
             m.pass = value
-            m.passInput.text = IIF(Len(value) > 0, "********", "Sua senha")
+            if Len(value) = 0
+                m.passInput.text = "Sua senha"
+            else
+                m.passInput.text = "********"
+            end if
         end if
     end if
 
@@ -346,24 +476,17 @@ sub loginKeyboardSelected()
     m.activeKeyboard = invalid
     m.editTarget = ""
     m.editTargetButton = invalid
-    if target <> invalid then target.setFocus(true)
-end sub
 
-sub showHome()
-    m.loginView.visible = false
-    m.contentView.visible = false
-    m.blockedView.visible = false
-    m.homeView.visible = true
-    m.appHeader.visible = true
-    m.loginActions.visible = true
-    m.navHome.setFocus(true)
+    if target <> invalid then target.setFocus(true)
 end sub
 
 sub loadCategoriesFor(t as String)
     m.currentType = t
+
     action = "get_live_categories"
     if t = "movies" then action = "get_vod_categories"
     if t = "series" then action = "get_series_categories"
+
     url = m.activeServer + "/player_api.php?username=" + m.user.EncodeUriComponent() + "&password=" + m.pass.EncodeUriComponent() + "&action=" + action
     request("categories", url, "GET", "")
 end sub
@@ -376,7 +499,7 @@ sub showLive()
     m.contentView.visible = true
     m.miniPlayer.visible = true
     loadCategoriesFor("live")
-    m.navLive.setFocus(true)
+    m.top.findNode("navLive").setFocus(true)
 end sub
 
 sub showMovies()
@@ -387,7 +510,7 @@ sub showMovies()
     m.contentView.visible = true
     m.miniPlayer.visible = false
     loadCategoriesFor("movies")
-    m.navMovies.setFocus(true)
+    m.top.findNode("navMovies").setFocus(true)
 end sub
 
 sub showSeries()
@@ -398,18 +521,21 @@ sub showSeries()
     m.contentView.visible = true
     m.miniPlayer.visible = false
     loadCategoriesFor("series")
-    m.navSeries.setFocus(true)
+    m.top.findNode("navSeries").setFocus(true)
 end sub
 
 sub loadCategories(data as Object)
     if data = invalid or Type(data) <> "roArray" then return
+
     root = CreateObject("roSGNode", "ContentNode")
     root.AppendChild(makeCategory("Todos", "*"))
+
     for each c in data
         if c <> invalid and c.category_name <> invalid and c.category_id <> invalid
             root.AppendChild(makeCategory(c.category_name, c.category_id.ToStr()))
         end if
     end for
+
     m.categories.content = root
     m.currentCategory = "*"
     m.categories.setFocus(true)
@@ -435,8 +561,12 @@ sub loadContentForCurrent()
     action = "get_live_streams"
     if m.currentType = "movies" then action = "get_vod_streams"
     if m.currentType = "series" then action = "get_series"
+
     url = m.activeServer + "/player_api.php?username=" + m.user.EncodeUriComponent() + "&password=" + m.pass.EncodeUriComponent() + "&action=" + action
-    if m.currentCategory <> "*" then url = url + "&category_id=" + m.currentCategory.EncodeUriComponent()
+    if m.currentCategory <> "*" then
+        url = url + "&category_id=" + m.currentCategory.EncodeUriComponent()
+    end if
+
     request("content", url, "GET", "")
 end sub
 
@@ -489,9 +619,13 @@ sub loadContent(data as Object)
     end for
 
     m.grid.content = root
+
     sectionTitle = "Canais"
-    if m.currentType = "movies" then sectionTitle = "Filmes"
-    if m.currentType = "series" then sectionTitle = "Séries"
+    if m.currentType = "movies"
+        sectionTitle = "Filmes"
+    else if m.currentType = "series"
+        sectionTitle = "Séries"
+    end if
     m.top.findNode("sectionTitle").text = sectionTitle
     m.top.findNode("sectionCount").text = itemCount.ToStr() + " itens"
     m.grid.setFocus(true)
@@ -501,11 +635,13 @@ sub gridSelected()
     idx = m.grid.itemSelected
     item = m.grid.content.GetChild(idx)
     if item = invalid then return
+
     if m.currentType = "series"
         url = m.activeServer + "/player_api.php?username=" + m.user.EncodeUriComponent() + "&password=" + m.pass.EncodeUriComponent() + "&action=get_series_info&series_id=" + item.seriesId.ToStr()
         request("seriesInfo", url, "GET", "")
         return
     end if
+
     playContent(item)
 end sub
 
@@ -517,7 +653,9 @@ sub playFirstEpisode(data as Object)
             ep = list[0]
             vc = CreateObject("roSGNode", "ContentNode")
             vc.url = ep.link
-            if vc.url = invalid or Len(vc.url) = 0 then vc.url = ep.url
+            if vc.url = invalid or Len(vc.url) = 0
+                vc.url = ep.url
+            end if
             vc.title = ep.title
             vc.streamFormat = "mp4"
             m.video.content = vc
@@ -530,10 +668,12 @@ end sub
 
 sub playContent(item as Object)
     if item = invalid then return
+
     vc = CreateObject("roSGNode", "ContentNode")
     vc.url = item.url
     vc.title = item.title
     vc.streamFormat = item.streamFormat
+
     m.video.content = vc
     m.video.control = "play"
     m.miniTitle.text = item.title
@@ -557,7 +697,8 @@ sub logout()
     m.user = ""
     m.pass = ""
     m.userBadge.text = ""
-    m.appHeader.visible = false
+    m.navGroup.visible = false
+    m.loginActions.visible = false
     m.homeView.visible = false
     m.contentView.visible = false
     m.loginView.visible = true
@@ -566,6 +707,7 @@ sub logout()
     m.userInput.text = "Seu usuário"
     m.passInput.text = "Sua senha"
     m.loginFieldIndex = 0
+    m.loginView.setFocus(true)
     updateLoginFocus()
 end sub
 
@@ -585,10 +727,25 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
                 updateLoginFocus()
                 return true
             end if
+        else if key = "OK" or key = "select"
+            if m.loginFieldIndex = 0
+                editServer()
+                return true
+            else if m.loginFieldIndex = 1
+                editUser()
+                return true
+            else if m.loginFieldIndex = 2
+                editPass()
+                return true
+            else
+                onLogin()
+                return true
+            end if
         end if
-        return false
+        return true
     end if
 
+    ' Home: navegação previsível pelo D-pad.
     if m.homeView.visible
         if key = "left"
             if m.homeMovies.hasFocus()
@@ -634,6 +791,7 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
         end if
     end if
 
+    ' Menu superior.
     if m.navHome.hasFocus() or m.navLive.hasFocus() or m.navMovies.hasFocus() or m.navSeries.hasFocus()
         if key = "left"
             if m.navLive.hasFocus()
@@ -667,11 +825,15 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
             m.grid.setFocus(true)
             return true
         end if
+
         if m.contentView.visible
             showHome()
             return true
         end if
-        if m.homeView.visible then return true
+
+        if m.homeView.visible
+            return true
+        end if
     end if
 
     return false

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="MainScene" extends="Scene">
+    <interface>
+        <field id="apiBase" type="string" />
+    </interface>
+
+    <children>
+        <Rectangle id="bg" width="1280" height="720" color="#05070B" />
+        <Rectangle translation="[0,0]" width="1280" height="720" color="#07131D" opacity="0.28" />
+
+        <Group id="appHeader" visible="false">
+            <Rectangle id="topBar" width="1280" height="82" color="#070C14" />
+            <Rectangle translation="[0,80]" width="1280" height="2" color="#00D2FF" opacity="0.18" />
+            <Poster id="brandLogo" uri="pkg:/images/icon_focus_hd.png" translation="[26,12]" width="62" height="62" />
+            <Label id="brand" text="WRB-TV" translation="[96,14]" width="165" height="46"
+                font="font:LargeBoldSystemFont" color="#F7FBFF" />
+            <Label id="pro" text="PRO" translation="[262,23]" width="58" height="30"
+                font="font:SmallBoldSystemFont" color="#00D2FF" />
+
+            <Group id="navGroup" translation="[390,17]">
+                <Rectangle translation="[-7,-5]" width="560" height="58" color="#08121B" opacity="0.94" />
+                <Button id="navHome" text="Início" width="130" height="48" textColor="#AEBFCC" focusedTextColor="#071019" />
+                <Button id="navLive" text="Ao Vivo" translation="[138,0]" width="130" height="48" textColor="#AEBFCC" focusedTextColor="#071019" />
+                <Button id="navMovies" text="Filmes" translation="[276,0]" width="130" height="48" textColor="#AEBFCC" focusedTextColor="#071019" />
+                <Button id="navSeries" text="Séries" translation="[414,0]" width="130" height="48" textColor="#AEBFCC" focusedTextColor="#071019" />
+            </Group>
+
+            <Group id="loginActions" translation="[1030,18]">
+                <Label id="deviceBadge" text="ROKU" translation="[0,6]" width="95" height="28"
+                    color="#63798C" horizAlign="right" font="font:SmallSystemFont" />
+                <Rectangle translation="[100,0]" width="140" height="40" color="#09131C" opacity="0.94" />
+                <Label id="userBadge" text="" translation="[108,6]" width="124" height="28"
+                    color="#DDE7F0" horizAlign="right" font="font:SmallSystemFont" />
+            </Group>
+        </Group>
+
+        <Group id="loginView" translation="[0,0]" visible="true">
+            <Rectangle translation="[255,42]" width="770" height="625" color="#09111A" opacity="0.99" />
+            <Rectangle translation="[255,42]" width="770" height="2" color="#00D2FF" opacity="0.24" />
+
+            <Poster id="loginLogo" uri="pkg:/images/icon_focus_hd.png"
+                translation="[590,68]" width="100" height="100" />
+
+            <Label text="Seu Player IPTV Universal" translation="[300,180]" width="680" height="46"
+                font="font:LargeBoldSystemFont" color="#F5F8FB" horizAlign="center" />
+            <Label text="Canais ao vivo, filmes e séries através de Xtream Codes"
+                translation="[320,229]" width="640" height="28"
+                font="font:SmallSystemFont" color="#7F93A6" horizAlign="center" />
+
+            <Rectangle translation="[315,270]" width="650" height="310" color="#061019" opacity="0.96" />
+
+            <Label text="CÓDIGO / DNS DO SERVIDOR" translation="[345,286]" width="590" height="20"
+                font="font:SmallBoldSystemFont" color="#8CA0B5" />
+            <Rectangle id="serverBack" translation="[345,314]" width="590" height="50" color="#02060A" />
+            <Rectangle id="serverFocus" translation="[341,310]" width="598" height="58"
+                color="#00D2FF" opacity="0.20" visible="true" />
+            <Button id="serverInput" text="http://servidor:porta" translation="[345,314]"
+                width="590" height="50" textColor="#64798B" focusedTextColor="#F4F8FB" />
+
+            <Label text="USUÁRIO" translation="[345,377]" width="590" height="20"
+                font="font:SmallBoldSystemFont" color="#8CA0B5" />
+            <Rectangle id="userBack" translation="[345,405]" width="590" height="50" color="#02060A" />
+            <Rectangle id="userFocus" translation="[341,401]" width="598" height="58"
+                color="#00D2FF" opacity="0.20" visible="false" />
+            <Button id="userInput" text="Seu usuário" translation="[345,405]"
+                width="590" height="50" textColor="#64798B" focusedTextColor="#F4F8FB" />
+
+            <Label text="SENHA" translation="[345,468]" width="590" height="20"
+                font="font:SmallBoldSystemFont" color="#8CA0B5" />
+            <Rectangle id="passBack" translation="[345,496]" width="590" height="50" color="#02060A" />
+            <Rectangle id="passFocus" translation="[341,492]" width="598" height="58"
+                color="#00D2FF" opacity="0.20" visible="false" />
+            <Button id="passInput" text="Sua senha" translation="[345,496]"
+                width="590" height="50" textColor="#64798B" focusedTextColor="#F4F8FB" />
+
+            <Label id="loginError" text="" translation="[345,553]" width="590" height="20"
+                color="#FF7180" horizAlign="center" font="font:SmallSystemFont" />
+
+            <Button id="loginButton" text="CONECTAR E ENTRAR" translation="[345,582]"
+                width="590" height="48" textColor="#AEBFCC" focusedTextColor="#061019" />
+        </Group>
+
+        <Group id="homeView" translation="[0,82]" visible="false">
+            <Poster id="homeLogo" uri="pkg:/images/icon_focus_hd.png" translation="[585,8]" width="110" height="110" />
+            <Label text="WRB-TV PLAYER PRO" translation="[170,112]" width="940" height="40"
+                font="font:MediumBoldSystemFont" color="#8EA2B4" horizAlign="center" />
+            <Group id="homeCards" translation="[170,160]">
+                <Button id="homeLive" text="Ao Vivo" width="280" height="160" />
+                <Button id="homeMovies" text="Filmes" translation="[295,0]" width="280" height="160" />
+                <Button id="homeSeries" text="Séries" translation="[590,0]" width="280" height="160" />
+                <Button id="homeFavs" text="Favoritos" translation="[145,180]" width="280" height="160" />
+                <Button id="homeExit" text="Sair" translation="[440,180]" width="280" height="160" />
+            </Group>
+            <Label text="ENTRETENIMENTO SEM LIMITES" translation="[250,560]" width="780" height="26"
+                horizAlign="center" font="font:SmallBoldSystemFont" color="#637687" />
+        </Group>
+
+        <Group id="contentView" translation="[0,82]" visible="false">
+            <Rectangle translation="[0,0]" width="295" height="638" color="#081019" />
+            <TextEditBox id="categorySearch" translation="[16,16]" width="263" height="45" text="" />
+            <LabelList id="categories" translation="[16,72]" width="263" height="535" itemSize="[263,46]" />
+            <Label id="sectionTitle" text="Conteúdo" translation="[320,18]" width="650" height="45"
+                font="font:LargeBoldSystemFont" color="#F4F7FA" />
+            <Label id="sectionCount" text="" translation="[975,30]" width="100" height="28" color="#7D8CA0" />
+            <PosterGrid id="contentGrid" translation="[315,78]" width="625" height="535" numColumns="3" numRows="3" />
+            <Group id="miniPlayer" translation="[960,78]" visible="false">
+                <Rectangle width="300" height="495" color="#071018" />
+                <Label id="miniTitle" text="Selecione um canal" translation="[12,12]" width="275" height="34" color="#F4F7FA" />
+                <Video id="video" translation="[12,55]" width="276" height="155" />
+                <Label id="miniInfo" text="" translation="[12,225]" width="275" height="155" color="#7D8CA0" wrap="true" />
+                <Button id="miniFull" text="Tela inteira" translation="[12,445]" width="276" height="44" />
+            </Group>
+        </Group>
+
+        <Group id="blockedView" visible="false">
+            <Rectangle translation="[270,170]" width="740" height="380" color="#0B121C" />
+            <Label text="APLICATIVO NÃO AUTORIZADO" translation="[330,225]" width="620" height="44"
+                font="font:LargeBoldSystemFont" color="#FF6D7A" horizAlign="center" />
+            <Label id="blockedText" text="Entre em contato com seu revendedor para ativar este dispositivo."
+                translation="[360,300]" width="560" height="80" color="#9AAABD" wrap="true" horizAlign="center" />
+            <Label id="blockedId" text="" translation="[360,395]" width="560" height="40" color="#00D2FF" horizAlign="center" />
+        </Group>
+    </children>
+
+    <script type="text/brightscript" uri="MainScene.brs" />
+</component>

@@ -493,4 +493,526 @@ app.on('before-quit', () => {
 
 app.on('window-all-closed', () => {
   app.quit();
+});function getWindowsMachineGuid() {
+  if (process.platform !== 'win32') return null;
+  try {
+    const output = execFileSync(
+      'reg.exe',
+      ['query', 'HKLM\\SOFTWARE\\Microsoft\\Cryptography', '/v', 'MachineGuid'],
+      { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    const match = output.match(/MachineGuid\\s+REG_SZ\\s+([^\\r\\n]+)/i);
+    return match ? match[1].trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+function getStableMachineIdentifier() {
+  try {
+    if (process.platform === 'darwin') {
+      const output = execFileSync(
+        'ioreg',
+        ['-rd1', '-c', 'IOPlatformExpertDevice'],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+      );
+      const match = output.match(/"IOPlatformUUID" = "([^"]+)"/i);
+      if (match) return `macos:${match[1].trim()}`;
+    }
+
+    if (process.platform === 'linux') {
+      const candidates = ['/etc/machine-id', '/var/lib/dbus/machine-id'];
+      for (const file of candidates) {
+        try {
+          const value = fs.readFileSync(file, 'utf8').trim();
+          if (value) return `linux:${value}`;
+        } catch {}
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+function formatDeviceId(hex) {
+  return hex.match(/.{2}/g).join(':').toUpperCase();
+}
+
+function hashToDeviceId(seed) {
+  const digest = crypto.createHash('sha256').update(seed).digest('hex').slice(0, 12);
+  return formatDeviceId(digest);
+}
+
+function getDeviceId() {
+  // Windows mantém o mesmo algoritmo da versão anterior para que os IDs
+  // já distribuídos aos clientes não mudem após a atualização.
+  const machineGuid = getWindowsMachineGuid();
+  if (machineGuid) {
+    return hashToDeviceId(`WRB-TV-DEVICE-v1:${machineGuid}`);
+  }
+
+  // Preserva qualquer ID legado já gravado localmente.
+  const fallbackPath = path.join(app.getPath('userData'), 'device-id.txt');
+  try {
+    if (fs.existsSync(fallbackPath)) {
+      const existing = fs.readFileSync(fallbackPath, 'utf8').trim().toUpperCase();
+      if (/^[0-9A-F]{2}(?::[0-9A-F]{2}){5}$/.test(existing)) return existing;
+    }
+  } catch {}
+
+  // Em macOS/Linux, novas instalações recebem um ID derivado da identidade
+  // da máquina. Assim, reinstalações futuras não dependem de random/localStorage.
+  const stable = getStableMachineIdentifier();
+  if (stable) return hashToDeviceId(`WRB-TV-DEVICE-v2:${stable}`);
+
+  // Último fallback para ambientes sem identificador de máquina disponível.
+  try {
+    const generated = formatDeviceId(crypto.randomBytes(6).toString('hex'));
+    fs.mkdirSync(path.dirname(fallbackPath), { recursive: true });
+    fs.writeFileSync(fallbackPath, generated, 'utf8');
+    return generated;
+  } catch {
+    return formatDeviceId(crypto.randomBytes(6).toString('hex'));
+  }
+}
+
+let mainWindow = null;
+let localServer = null;
+let shuttingDown = false;
+
+
+let updateDownloadInProgress = false;
+let updateAvailableVersion = null;
+let updateCheckInProgress = false;
+let updateCheckTimer = null;
+let windowedBounds = null;
+let appFullscreenRequested = false;
+let appFullscreenActive = false;
+let playerFullscreenActive = false;
+let suppressMaximizeToFullscreen = false;
+
+function configureAutoUpdater() {
+  if (!app.isPackaged) return;
+
+  // O download é disparado explicitamente no evento update-available.
+  // Isso torna o comportamento previsível e mantém a instalação automática no fechamento.
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowDowngrade = false;
+  autoUpdater.allowPrerelease = false;
+  autoUpdater.logger = console;
+
+  autoUpdater.on('checking-for-update', () => {
+    updateCheckInProgress = true;
+    console.log(`[WRB-TV] Verificando atualizações. Versão instalada: ${app.getVersion()}`);
+  });
+
+  autoUpdater.on('update-available', async info => {
+    updateCheckInProgress = false;
+    updateAvailableVersion = info.version;
+    console.log(`[WRB-TV] Atualização disponível: ${info.version}. Iniciando download automático.`);
+    await downloadAndInstallUpdate();
+  });
+
+  autoUpdater.on('update-not-available', info => {
+    updateCheckInProgress = false;
+    console.log(`[WRB-TV] Nenhuma atualização disponível. Versão atual: ${info?.version || app.getVersion()}`);
+  });
+
+  autoUpdater.on('download-progress', progress => {
+    console.log(`[WRB-TV] Baixando atualização: ${Math.round(progress.percent)}% - ${Math.round(progress.bytesPerSecond / 1024)} KB/s`);
+  });
+
+  autoUpdater.on('update-downloaded', info => {
+    updateDownloadInProgress = false;
+    updateCheckInProgress = false;
+    updateAvailableVersion = info.version;
+    console.log(`[WRB-TV] Atualização ${info.version} baixada. Será instalada automaticamente ao fechar o aplicativo.`);
+  });
+
+  autoUpdater.on('error', error => {
+    updateDownloadInProgress = false;
+    updateCheckInProgress = false;
+    console.error('[WRB-TV] Erro no atualizador:', error);
+  });
+}
+
+async function checkForUpdates() {
+  if (!app.isPackaged || updateDownloadInProgress || updateCheckInProgress) return;
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (error) {
+    updateCheckInProgress = false;
+    console.error('[WRB-TV] Não foi possível verificar atualizações:', error);
+  }
+}
+
+async function downloadAndInstallUpdate() {
+  if (updateDownloadInProgress) return;
+  updateDownloadInProgress = true;
+  try {
+    await autoUpdater.downloadUpdate();
+  } catch (error) {
+    updateDownloadInProgress = false;
+    updateCheckInProgress = false;
+    console.error('[WRB-TV] Falha ao baixar atualização:', error);
+  }
+}
+
+function scheduleAutomaticUpdateChecks() {
+  if (!app.isPackaged) return;
+
+  // Verificação inicial após o player abrir.
+  setTimeout(() => checkForUpdates(), 3000);
+
+  // Repetição periódica para o caso de o programa estar aberto quando
+  // uma nova versão for publicada.
+  updateCheckTimer = setInterval(() => checkForUpdates(), 15 * 60 * 1000);
+
+  // Verifica novamente quando o usuário volta para a janela.
+  app.on('browser-window-focus', () => {
+    setTimeout(() => checkForUpdates(), 1500);
+  });
+}
+
+ipcMain.handle('wrb:get-device-id', () => getDeviceId());
+
+ipcMain.handle('wrb:set-fullscreen', (_event, enabled) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+
+  // O player não deve alterar o fullscreen geral do aplicativo.
+  if (appFullscreenActive || appFullscreenRequested) return true;
+
+  playerFullscreenActive = !!enabled;
+
+  if (enabled) {
+    if (!mainWindow.isFullScreen()) {
+      windowedBounds = mainWindow.getBounds();
+      mainWindow.setFullScreen(true);
+    }
+  } else if (mainWindow.isFullScreen()) {
+    mainWindow.setFullScreen(false);
+  } else {
+    playerFullscreenActive = false;
+  }
+
+  return mainWindow.isFullScreen();
+});
+
+ipcMain.handle('wrb:is-fullscreen', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  return mainWindow.isFullScreen();
+});
+
+ipcMain.handle('wrb:set-app-fullscreen', (_event, enabled) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+
+  if (enabled) {
+    // Guarda o último formato normal antes de entrar no modo TV.
+    if (!mainWindow.isFullScreen() && !mainWindow.isMaximized()) {
+      windowedBounds = mainWindow.getBounds();
+    }
+
+    appFullscreenRequested = true;
+    appFullscreenActive = true;
+
+    try {
+      if (!mainWindow.isFullScreen()) mainWindow.setFullScreen(true);
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', true);
+    } catch (error) {
+      appFullscreenRequested = false;
+      appFullscreenActive = false;
+      console.error('[WRB-TV] Falha ao entrar no modo TV:', error);
+      return false;
+    }
+
+    return true;
+  }
+
+  // Saída robusta do modo TV. A transição nativa do Electron é assíncrona,
+  // portanto também existe uma segunda normalização no evento leave-full-screen.
+  appFullscreenRequested = false;
+  appFullscreenActive = false;
+  // Impede que a transição de restauração seja interpretada como novo
+  // comando do usuário para entrar em fullscreen.
+  suppressMaximizeToFullscreen = true;
+
+  try {
+    if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+
+    mainWindow.setResizable(true);
+    mainWindow.show();
+    mainWindow.focus();
+
+    const bounds = windowedBounds || { width: 1440, height: 900 };
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+
+      if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
+      if (mainWindow.isMaximized()) mainWindow.unmaximize();
+
+      if (!mainWindow.isFullScreen() && !mainWindow.isMaximized()) {
+        mainWindow.setBounds(bounds, false);
+        mainWindow.show();
+        mainWindow.focus();
+      }
+
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+      suppressMaximizeToFullscreen = false;
+    }, 450);
+  } catch (error) {
+    console.error('[WRB-TV] Falha ao restaurar a janela normal:', error);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+      suppressMaximizeToFullscreen = false;
+    }
+  }
+
+  return false;
+});
+
+function appRoot() {
+  return app.getAppPath();
+}
+
+function serverPath() {
+  return path.join(appRoot(), 'server.mjs');
+}
+
+function requestLocal(pathname = '/') {
+  return new Promise((resolve, reject) => {
+    const req = http.get(
+      { hostname: '127.0.0.1', port: PORT, path: pathname, timeout: 1200 },
+      res => {
+        res.resume();
+        resolve(res.statusCode >= 200 && res.statusCode < 500);
+      }
+    );
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+  });
+}
+
+async function waitForServer(timeoutMs = 15000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await requestLocal('/')) return true;
+    await new Promise(r => setTimeout(r, 250));
+  }
+  return false;
+}
+
+async function startLocalServer() {
+  if (localServer) return localServer;
+
+  const serverModulePath = path.join(appRoot(), 'server.mjs');
+  const serverModule = await import(require('url').pathToFileURL(serverModulePath).href);
+
+  localServer = await serverModule.startServer(PORT);
+  return localServer;
+}
+
+async function ensureLocalServer() {
+  if (await requestLocal('/')) {
+    return true;
+  }
+
+  try {
+    await startLocalServer();
+  } catch (error) {
+    console.error('[WRB-TV] Falha ao iniciar servidor interno:', error);
+    return false;
+  }
+
+  return await waitForServer();
+}
+
+function stopLocalServer() {
+  if (!localServer) return;
+
+  try {
+    localServer.close();
+  } catch {}
+
+  localServer = null;
+}
+
+function getWindowIconPath() {
+  if (process.platform === 'win32') {
+    return path.join(appRoot(), 'build', 'icon.ico');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(appRoot(), 'build', 'logo-source.png');
+  }
+  return path.join(appRoot(), 'build', 'logo-source.png');
+}
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1440,
+    height: 900,
+    minWidth: 420,
+    minHeight: 460,
+    backgroundColor: '#020711',
+    show: false,
+    autoHideMenuBar: true,
+    title: 'WRB-TV Player',
+    icon: getWindowIconPath(),
+    fullscreenable: true,
+    frame: true,
+    webPreferences: {
+      preload: path.join(appRoot(), 'electron', 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      autoplayPolicy: 'no-user-gesture-required'
+    }
+  });
+
+  mainWindow.once('ready-to-show', () => {
+    // Guarda o formato normal para restaurar quando o usuário sair do modo TV.
+    windowedBounds = mainWindow.getBounds();
+    appFullscreenRequested = true;
+    appFullscreenActive = true;
+
+    mainWindow.show();
+
+    // Entra no modo TV assim que a janela estiver visível.
+    // A pequena espera melhora a compatibilidade com GNOME/KDE e outros
+    // gerenciadores de janelas que só aceitam fullscreen após o mapeamento.
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      appFullscreenRequested = true;
+      appFullscreenActive = true;
+      if (!mainWindow.isFullScreen()) mainWindow.setFullScreen(true);
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', true);
+    }, 80);
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  // Maximizar a janela normal = entrar no modo TV/fullscreen.
+  mainWindow.on('maximize', () => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isFullScreen() || suppressMaximizeToFullscreen) return;
+    windowedBounds = mainWindow.getBounds();
+    appFullscreenRequested = true;
+    appFullscreenActive = true;
+    mainWindow.setFullScreen(true);
+  });
+
+  mainWindow.on('enter-full-screen', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (appFullscreenActive) {
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', true);
+    } else if (playerFullscreenActive) {
+      mainWindow.webContents.send('wrb:fullscreen-changed', true);
+    }
+  });
+
+  mainWindow.on('leave-full-screen', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    // Player fullscreen é independente do modo TV do aplicativo.
+    if (playerFullscreenActive) {
+      playerFullscreenActive = false;
+      mainWindow.webContents.send('wrb:fullscreen-changed', false);
+      return;
+    }
+
+    // Saída do modo TV. Não dependemos dos flags anteriores, pois o IPC pode
+    // tê-los limpado antes deste evento assíncrono chegar.
+    appFullscreenActive = false;
+    appFullscreenRequested = false;
+    suppressMaximizeToFullscreen = true;
+
+    try {
+      if (mainWindow.isMaximized()) mainWindow.unmaximize();
+      mainWindow.setResizable(true);
+      mainWindow.show();
+
+      const bounds = windowedBounds;
+      setTimeout(() => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+
+        if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
+        if (mainWindow.isMaximized()) mainWindow.unmaximize();
+
+        if (bounds && !mainWindow.isFullScreen() && !mainWindow.isMaximized()) {
+          mainWindow.setBounds(bounds, false);
+        }
+
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+        suppressMaximizeToFullscreen = false;
+      }, 450);
+    } catch (error) {
+      console.error('[WRB-TV] Falha no evento de saída do modo TV:', error);
+      mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+      suppressMaximizeToFullscreen = false;
+    }
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+}
+
+async function boot() {
+  try {
+    const ok = await ensureLocalServer();
+
+    if (!ok) {
+      throw new Error(
+        `Não foi possível iniciar o servidor local em http://127.0.0.1:${PORT}.`
+      );
+    }
+
+    createWindow();
+    await mainWindow.loadURL(`http://127.0.0.1:${PORT}/`);
+  } catch (error) {
+    dialog.showErrorBox(
+      'WRB-TV Player',
+      `${error.message}\n\nVerifique se a porta ${PORT} está livre.`
+    );
+    app.quit();
+  }
+}
+
+app.whenReady().then(async () => {
+  configureAutoUpdater();
+
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false);
+  });
+
+  app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
+  await boot();
+
+  scheduleAutomaticUpdateChecks();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) boot();
+  });
+});
+
+app.on('before-quit', () => {
+  shuttingDown = true;
+  if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+    updateCheckTimer = null;
+  }
+  stopLocalServer();
+});
+
+app.on('window-all-closed', () => {
+  app.quit();
 });

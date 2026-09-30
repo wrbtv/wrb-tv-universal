@@ -31,4 +31,3 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "WRB-PLAY-ROKU 1.0 Build ${GITHUB_RUN_NUMBER}" \
             --notes "Pacote Roku para sideload/teste. Integrado à API de ativação do WRB-TV Business." \
-            --latest

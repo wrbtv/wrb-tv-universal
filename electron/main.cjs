@@ -185,28 +185,38 @@ ipcMain.handle('wrb:set-app-fullscreen', (_event, enabled) => {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
 
   if (enabled) {
-    appFullscreenRequested = true;
-
-    if (!mainWindow.isFullScreen()) {
+    // Guarda o último formato normal antes de entrar no modo TV.
+    if (!mainWindow.isFullScreen() && !mainWindow.isMaximized()) {
       windowedBounds = mainWindow.getBounds();
-      appFullscreenActive = true;
-      mainWindow.setFullScreen(true);
-    } else {
-      appFullscreenActive = true;
+    }
+
+    appFullscreenRequested = true;
+    appFullscreenActive = true;
+
+    try {
+      if (!mainWindow.isFullScreen()) mainWindow.setFullScreen(true);
+      mainWindow.show();
+      mainWindow.focus();
       mainWindow.webContents.send('wrb:app-fullscreen-changed', true);
+    } catch (error) {
+      appFullscreenRequested = false;
+      appFullscreenActive = false;
+      console.error('[WRB-TV] Falha ao entrar no modo TV:', error);
+      return false;
     }
 
     return true;
   }
 
-  // Saída do modo TV: desfaz o fullscreen nativo e restaura
-  // explicitamente a janela decorada/normal.
+  // Saída robusta do modo TV. A transição nativa do Electron é assíncrona,
+  // portanto também existe uma segunda normalização no evento leave-full-screen.
   appFullscreenRequested = false;
   appFullscreenActive = false;
 
   try {
     if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
     if (mainWindow.isMaximized()) mainWindow.unmaximize();
+
     mainWindow.setResizable(true);
     mainWindow.show();
     mainWindow.focus();
@@ -214,13 +224,18 @@ ipcMain.handle('wrb:set-app-fullscreen', (_event, enabled) => {
     const bounds = windowedBounds || { width: 1440, height: 900 };
     setTimeout(() => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
+
+      if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
+      if (mainWindow.isMaximized()) mainWindow.unmaximize();
+
       if (!mainWindow.isFullScreen() && !mainWindow.isMaximized()) {
         mainWindow.setBounds(bounds, false);
         mainWindow.show();
         mainWindow.focus();
       }
+
       mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
-    }, 180);
+    }, 220);
   } catch (error) {
     console.error('[WRB-TV] Falha ao restaurar a janela normal:', error);
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -377,30 +392,40 @@ function createWindow() {
   mainWindow.on('leave-full-screen', () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
-    const wasAppFullscreen = appFullscreenActive || appFullscreenRequested;
-    appFullscreenActive = false;
-    appFullscreenRequested = false;
-
+    // Player fullscreen é independente do modo TV do aplicativo.
     if (playerFullscreenActive) {
       playerFullscreenActive = false;
       mainWindow.webContents.send('wrb:fullscreen-changed', false);
+      return;
     }
 
-    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    // Saída do modo TV. Não dependemos dos flags anteriores, pois o IPC pode
+    // tê-los limpado antes deste evento assíncrono chegar.
+    appFullscreenActive = false;
+    appFullscreenRequested = false;
 
-    // Garante que o gerenciador de janelas volte para o modo decorado.
-    if (wasAppFullscreen) {
+    try {
+      if (mainWindow.isMaximized()) mainWindow.unmaximize();
       mainWindow.setResizable(true);
       mainWindow.show();
-      if (windowedBounds) {
-        setTimeout(() => {
-          if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFullScreen() && !mainWindow.isMaximized()) {
-            mainWindow.setBounds(windowedBounds, false);
-            mainWindow.show();
-            mainWindow.focus();
-          }
-        }, 220);
-      }
+
+      const bounds = windowedBounds;
+      setTimeout(() => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+
+        if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
+        if (mainWindow.isMaximized()) mainWindow.unmaximize();
+
+        if (bounds && !mainWindow.isFullScreen() && !mainWindow.isMaximized()) {
+          mainWindow.setBounds(bounds, false);
+        }
+
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+      }, 120);
+    } catch (error) {
+      console.error('[WRB-TV] Falha no evento de saída do modo TV:', error);
       mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
     }
   });

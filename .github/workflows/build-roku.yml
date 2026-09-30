@@ -1,0 +1,28 @@
+name: Build Roku package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "roku/**"
+      - ".github/workflows/build-roku.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  roku:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package Roku channel
+        run: |
+          cd roku
+          zip -r ../WRB-PLAY-ROKU.zip . -x "*.DS_Store"
+      - name: Publish Roku package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="roku-v1.0.${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" WRB-PLAY-ROKU.zip             --repo "$GITHUB_REPOSITORY"             --title "WRB-PLAY-ROKU 1.0 Build ${GITHUB_RUN_NUMBER}"             --notes "Pacote Roku para sideload/teste. Integrado ao painel WRB-TV Business."             --latest

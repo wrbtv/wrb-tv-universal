@@ -295,11 +295,19 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    // Guarda o formato normal para restaurar quando o usuário sair do modo TV.
     windowedBounds = mainWindow.getBounds();
     appFullscreenRequested = true;
     appFullscreenActive = true;
-    mainWindow.setFullScreen(true);
+
     mainWindow.show();
+
+    // Alguns ambientes Linux aplicam fullscreen com mais confiabilidade
+    // depois que a janela já está mapeada na tela.
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (!mainWindow.isFullScreen()) mainWindow.setFullScreen(true);
+    }, 60);
   });
 
   mainWindow.on('closed', () => {

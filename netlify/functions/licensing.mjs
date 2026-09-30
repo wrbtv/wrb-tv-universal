@@ -21,7 +21,7 @@ export default async req=>{
  if(action==="check"){
    let d=await read(id);
    const now=new Date().toISOString();
-   if(!d)d={device_id:id,app_id:String(b.app_id||"wrbtv-player"),app_version:String(b.app_version||"unknown"),platform:String(b.platform||"unknown"),username:"",customer_id:null,status:"pending",authorized:false,created_at:now};
+   if(!d)d={device_id:id,app_id:String(b.app_id||"wrbtv-player"),app_version:String(b.app_version||"unknown"),platform:String(b.platform||"unknown"),username:"",customer_id:null,status:"inactive",authorized:false,created_at:now};
    if(b.app_id)d.app_id=String(b.app_id); if(b.app_version)d.app_version=String(b.app_version); if(b.platform)d.platform=String(b.platform);
    d.last_seen=now; await write(d);
    return json({authorized:d.status==="active",status:d.status,device_id:d.device_id,app_id:d.app_id,app_version:d.app_version,platform:d.platform,username:d.username||null,customer_id:d.customer_id,last_seen:d.last_seen,message:d.status==="active"?"Dispositivo autorizado.":"Para realizar a ativação, entre em contato com seu fornecedor."},d.status==="active"?200:403);

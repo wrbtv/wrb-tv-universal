@@ -1,0 +1,61 @@
+name: Keep client download links stable
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/keep-stable-links.yml"
+      - "package.json"
+      - "electron/**"
+      - "public/**"
+      - "server.mjs"
+      - "build/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keep-stable-links
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve latest desktop release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in {1..12}; do
+            TAG="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,createdAt --jq '[.[] | select(.tagName|test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(.createdAt) | last | .tagName')"
+            if [ -n "$TAG" ] && [ "$TAG" != "null" ]; then
+              echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Nenhuma release desktop encontrada."
+          exit 1
+
+      - name: Sync stable Windows, Linux and macOS assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf sync && mkdir sync
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY"             --pattern "WRB-TV-Player-Setup.exe"             --pattern "WRB-TV-Player-Setup.exe.blockmap"             --pattern "latest.yml"             --pattern "WRB-TV-Player.AppImage"             --pattern "WRB-TV-Player.deb"             --pattern "latest-linux.yml"             --pattern "WRB-TV-Player.dmg"             --pattern "WRB-TV-Player.zip"             --pattern "latest-mac.yml"             --dir sync
+
+          gh release upload "v2.0.44"             sync/WRB-TV-Player-Setup.exe             sync/WRB-TV-Player-Setup.exe.blockmap             sync/latest.yml             sync/WRB-TV-Player.AppImage             sync/WRB-TV-Player.deb             sync/latest-linux.yml             sync/WRB-TV-Player.dmg             sync/WRB-TV-Player.zip             sync/latest-mac.yml             --repo "$GITHUB_REPOSITORY" --clobber
+
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --latest
+
+      - name: Report
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: echo "Links estáveis sincronizados com $TAG"

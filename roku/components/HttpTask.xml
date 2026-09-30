@@ -13,18 +13,15 @@
         sub init()
             m.top.functionName = "run"
         end sub
-
         sub run()
             m.top.done = false
             m.top.error = ""
             m.top.status = -1
             m.top.response = ""
-
             xfer = CreateObject("roUrlTransfer")
             xfer.SetCertificatesFile("common:/certs/ca-bundle.crt")
             xfer.EnablePeerVerification(true)
             xfer.SetUrl(m.top.url)
-
             if UCase(m.top.method) = "POST"
                 xfer.AddHeader("Content-Type", "application/json; charset=utf-8")
                 port = CreateObject("roMessagePort")
@@ -54,7 +51,6 @@
                     m.top.status = 200
                 end if
             end if
-
             m.top.done = true
         end sub
     ]]></script>

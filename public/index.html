@@ -2773,9 +2773,16 @@
       } catch {}
     }
 
-    document.addEventListener('mousemove', () => {
-      if (isAppNativeFullscreen() && !$('player-overlay')?.classList.contains('show')) {
-        revealAppFullscreenExit();
+    document.addEventListener('mousemove', (e) => {
+      if (!isAppNativeFullscreen() || $('player-overlay')?.classList.contains('show')) return;
+
+      // Exibe o X quando o cursor chega ao canto superior direito,
+      // mantendo a interface limpa no restante da tela.
+      const nearTopRight = e.clientX >= (window.innerWidth - 150) && e.clientY <= 110;
+      if (nearTopRight) revealAppFullscreenExit();
+      else if (!e.buttons) {
+        const btn = $('appFullscreenExit');
+        if (btn) btn.classList.remove('visible');
       }
     });
 
@@ -4542,6 +4549,14 @@
 
     // KEYBOARD & D-PAD NAVIGATION FOR TV BOX & POWER USERS
     window.addEventListener('keydown', (e) => {
+      // ESC sai do fullscreen geral do aplicativo e volta ao tamanho normal.
+      if (e.key === 'Escape' && isAppNativeFullscreen()) {
+        setAppNativeFullscreen(false);
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
       if (e.key === 'Escape') {
         if (document.body.classList.contains('electron-fullscreen')) {
           if (state.currentPlayingMeta?.type === 'live') {

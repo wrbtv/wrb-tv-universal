@@ -2393,6 +2393,53 @@
       }
     }
 
+
+    /* APP FULLSCREEN MODE */
+    .app-fullscreen-exit {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 12px;
+      background: rgba(7,13,21,.78);
+      color: rgba(255,255,255,.86);
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      cursor: pointer;
+      z-index: 1000000;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-8px) scale(.96);
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease, background .18s ease, border-color .18s ease;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    body.app-native-fullscreen .app-fullscreen-exit.visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    body.app-native-fullscreen .app-fullscreen-exit:hover {
+      background: rgba(0,210,255,.18);
+      border-color: rgba(0,210,255,.55);
+      color: #fff;
+      box-shadow: 0 10px 36px rgba(0,210,255,.16);
+    }
+
+    body.app-native-fullscreen {
+      overflow: hidden !important;
+    }
+
   </style>
 </head>
 <body>
@@ -2446,6 +2493,8 @@
       </button>
     </div>
   </header>
+
+  <button id="appFullscreenExit" class="app-fullscreen-exit" type="button" title="Sair da tela cheia" aria-label="Sair da tela cheia">✕</button>
 
   <!-- VIEW: LOGIN & SERVER SETUP -->
   <section id="view-login">
@@ -2688,6 +2737,48 @@
     };
 
     const $ = id => document.getElementById(id);
+
+    let appFullscreenExitTimer = null;
+
+    function isAppNativeFullscreen() {
+      return document.body.classList.contains('app-native-fullscreen');
+    }
+
+    function revealAppFullscreenExit() {
+      const btn = $('appFullscreenExit');
+      if (!btn || !isAppNativeFullscreen() || $('player-overlay')?.classList.contains('show')) return;
+      btn.classList.add('visible');
+      clearTimeout(appFullscreenExitTimer);
+      appFullscreenExitTimer = setTimeout(() => btn.classList.remove('visible'), 2600);
+    }
+
+    async function setAppNativeFullscreen(enabled) {
+      try {
+        if (window.wrbDesktop?.setAppFullscreen) {
+          await window.wrbDesktop.setAppFullscreen(!!enabled);
+        }
+      } catch (err) {
+        console.warn('Fullscreen do aplicativo indisponível:', err);
+      }
+      document.body.classList.toggle('app-native-fullscreen', !!enabled);
+      if (!enabled) $('appFullscreenExit')?.classList.remove('visible');
+      else revealAppFullscreenExit();
+    }
+
+    async function syncAppNativeFullscreen() {
+      try {
+        const enabled = !!(await window.wrbDesktop?.isFullscreen?.());
+        document.body.classList.toggle('app-native-fullscreen', enabled);
+        if (!enabled) $('appFullscreenExit')?.classList.remove('visible');
+      } catch {}
+    }
+
+    document.addEventListener('mousemove', () => {
+      if (isAppNativeFullscreen() && !$('player-overlay')?.classList.contains('show')) {
+        revealAppFullscreenExit();
+      }
+    });
+
 
     // WATCH PROGRESS & RESUME (NETFLIX STYLE)
     function saveWatchProgress(meta, currentTime, duration) {
@@ -3735,10 +3826,12 @@
       // No aplicativo Windows, usamos o fullscreen nativo do Electron.
       // Isso remove a barra da janela e ocupa 100% do monitor.
       try {
-        if (window.wrbDesktop?.setFullscreen) {
-          await window.wrbDesktop.setFullscreen(true);
-        } else if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen();
+        if (!isAppNativeFullscreen()) {
+          if (window.wrbDesktop?.setFullscreen) {
+            await window.wrbDesktop.setFullscreen(true);
+          } else if (document.documentElement.requestFullscreen) {
+            await document.documentElement.requestFullscreen();
+          }
         }
       } catch (err) {
         console.warn('Fullscreen não disponível:', err);
@@ -4158,8 +4251,8 @@
       const overlay = $('player-overlay');
       const v = $('mainVideo');
       try {
-        if (window.wrbDesktop?.setFullscreen) await window.wrbDesktop.setFullscreen(false);
-        if (document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();
+        if (!isAppNativeFullscreen() && window.wrbDesktop?.setFullscreen) await window.wrbDesktop.setFullscreen(false);
+        if (!isAppNativeFullscreen() && document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();
       } catch {}
       document.body.classList.remove('electron-fullscreen');
       $('nextEpToast').style.display = 'none';
@@ -4327,8 +4420,8 @@
     $('ctrlFullscreen').onclick = (e) => {
       e.stopPropagation();
       if (document.body.classList.contains('electron-fullscreen') || document.fullscreenElement) {
-        if (window.wrbDesktop?.setFullscreen) window.wrbDesktop.setFullscreen(false);
-        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        if (!isAppNativeFullscreen() && window.wrbDesktop?.setFullscreen) window.wrbDesktop.setFullscreen(false);
+        if (!isAppNativeFullscreen() && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
         document.body.classList.remove('electron-fullscreen');
         showMiniPlayer();
         showControls();
@@ -4414,8 +4507,8 @@
     $('floatingBackBtn').onclick = (e) => {
       e.stopPropagation();
       if (document.body.classList.contains('electron-fullscreen') || document.fullscreenElement) {
-        if (window.wrbDesktop?.setFullscreen) window.wrbDesktop.setFullscreen(false);
-        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        if (!isAppNativeFullscreen() && window.wrbDesktop?.setFullscreen) window.wrbDesktop.setFullscreen(false);
+        if (!isAppNativeFullscreen() && document.fullscreenElement) document.exitFullscreen().catch(() => {});
         document.body.classList.remove('electron-fullscreen');
         if (state.currentPlayingMeta?.type === 'live') {
           showMiniPlayer();
@@ -4539,7 +4632,22 @@
     }
 
     // AUTO-RESTORE SAVED SESSION
+    if (window.wrbDesktop?.onAppFullscreenChanged) {
+      window.wrbDesktop.onAppFullscreenChanged((enabled) => {
+        document.body.classList.toggle('app-native-fullscreen', !!enabled);
+        if (!enabled) $('appFullscreenExit')?.classList.remove('visible');
+      });
+    }
+
+    if ($('appFullscreenExit')) {
+      $('appFullscreenExit').onclick = (e) => {
+        e.stopPropagation();
+        setAppNativeFullscreen(false);
+      };
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
+      syncAppNativeFullscreen();
       loadDeviceId();
       const saved = localStorage.getItem('wrbtv_session');
       if (saved) {

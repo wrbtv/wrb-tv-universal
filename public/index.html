@@ -2733,7 +2733,9 @@
       liveAutoPlayPending: false,
       liveFavoritesAutoPlayPending: false,
       lastLiveChannel: JSON.parse(localStorage.getItem('wrbtv_last_live') || 'null'),
-      isClosingPlayer: false
+      isClosingPlayer: false,
+      playerReturnMode: null, // 'mini-live' | 'series-modal' | null
+      playerReturnSeriesItem: null
     };
 
     const $ = id => document.getElementById(id);
@@ -3602,14 +3604,32 @@
 
     // ITEM CLICK ACTION
     function handleItemClick(item) {
+      // Se o canal já está selecionado no mini player e o usuário clicar
+      // novamente no mesmo card, abrir imediatamente o player em tela cheia
+      // sem reiniciar o stream e sem exigir clique no mini player.
+      if (
+        item?.type === 'live' &&
+        state.currentPlayingMeta?.type === 'live' &&
+        String(state.currentPlayingMeta.id) === String(item.id) &&
+        playerContainerEl &&
+        playerContainerEl.classList.contains('mini-mode')
+      ) {
+        state.playerReturnMode = 'mini-live';
+        showFullscreenPlayer();
+        return;
+      }
+
       if (state.contentSubView === 'history') {
         // Direct instant resume playback!
+        state.playerReturnMode = item?.type === 'live' ? 'mini-live' : null;
         playVideo(item.name || item.title, item.url, null, item);
         return;
       }
       if (item.type === 'series') {
         openSeriesModal(item);
       } else if (item.type === 'movies') {
+        state.playerReturnMode = null;
+        state.playerReturnSeriesItem = null;
         playVideo(item.name, item.url, null, {
           id: item.id,
           type: 'movies',
@@ -3618,6 +3638,11 @@
           url: item.url
         });
       } else {
+        if (!state.currentPlayingMeta || String(state.currentPlayingMeta.id) !== String(item.id)) {
+          state.playerReturnMode = null;
+          state.playerReturnSeriesItem = null;
+        }
+
         // Persistir o último canal assistido para reabrir automaticamente.
         state.lastLiveChannel = {
           id: String(item.id),
@@ -3767,6 +3792,10 @@
 
           document.querySelectorAll('.episode-item').forEach(el => {
             el.onclick = () => {
+              // Ao abrir um episódio em tela cheia, preservar a tela anterior
+              // para que o X/ESC possa retornar ao modal da série.
+              state.playerReturnMode = 'series-modal';
+              state.playerReturnSeriesItem = { ...item };
               modal.classList.remove('show');
               const currentEpIdx = eps.findIndex(e => String(e.id) === String(el.dataset.id));
               playVideo(`${item.name} — ${el.dataset.title}`, el.dataset.url, null, {
@@ -3831,11 +3860,23 @@
       panel.classList.add('active');
       $('miniPlayerTitle').textContent = $('floatingMediaTitle')?.textContent || 'Reproduzindo';
       $('player-overlay').classList.remove('show');
+      document.body.classList.remove('electron-fullscreen');
       updateLiveChannelSelector();
     }
 
     async function showFullscreenPlayer() {
       if (!playerContainerEl) return;
+
+      // Sempre que um canal ao vivo vier do mini player, guardar a origem
+      // para X/ESC retornarem ao mini player sem interromper o stream.
+      if (
+        state.currentPlayingMeta?.type === 'live' &&
+        playerContainerEl.classList.contains('mini-mode') &&
+        state.playerReturnMode !== 'mini-live'
+      ) {
+        state.playerReturnMode = 'mini-live';
+      }
+
       $('player-overlay').appendChild(playerContainerEl);
       playerContainerEl.classList.remove('mini-mode');
       $('player-overlay').classList.add('show');
@@ -3856,6 +3897,25 @@
       document.body.classList.add('electron-fullscreen');
       updateLiveChannelSelector();
       showControls();
+    }
+
+    async function exitPlayerFullscreenToPrevious() {
+      const returnMode = state.playerReturnMode;
+      if (returnMode === 'mini-live' && state.currentPlayingMeta?.type === 'live') {
+        // Sair somente do fullscreen do player. O aplicativo continua no
+        // modo TV e o canal segue tocando no mini player.
+        document.body.classList.remove('electron-fullscreen');
+        if (!isAppNativeFullscreen() && window.wrbDesktop?.setFullscreen) {
+          try { await window.wrbDesktop.setFullscreen(false); } catch {}
+        }
+        showMiniPlayer();
+        showControls();
+        return;
+      }
+
+      // Para Filmes e Séries não existe mini player: fechar a reprodução
+      // e retornar à tela anterior.
+      await closePlayer();
     }
 
     function hideMiniPlayer() {
@@ -3966,6 +4026,15 @@
     function playVideo(title, url, fallbackTsUrl, meta = null) {
       const overlay = $('player-overlay');
       const v = $('mainVideo');
+
+      // Detectar se o player de Ao Vivo já estava em fullscreen antes
+      // de trocar de canal para não voltar ao mini player.
+      const keepLiveFullscreen =
+        meta?.type === 'live' &&
+        state.currentPlayingMeta?.type === 'live' &&
+        $('player-overlay')?.classList.contains('show') &&
+        !playerContainerEl?.classList.contains('mini-mode');
+
       if ($('playerMediaTitle')) $('playerMediaTitle').textContent = title;
       if ($('floatingMediaTitle')) $('floatingMediaTitle').textContent = title;
       if ($('miniPlayerTitle')) $('miniPlayerTitle').textContent = title;
@@ -3976,7 +4045,8 @@
       // MINI PLAYER é exclusivo de Ao Vivo.
       // Filmes e Séries abrem diretamente no player em tela inteira.
       if (meta?.type === 'live') {
-        showMiniPlayer();
+        if (keepLiveFullscreen) showFullscreenPlayer();
+        else showMiniPlayer();
       } else {
         showFullscreenPlayer();
       }
@@ -4288,9 +4358,23 @@
       v.removeAttribute('src');
       overlay.classList.remove('show');
       hideMiniPlayer();
+      const returnMode = state.playerReturnMode;
+      const returnSeriesItem = state.playerReturnSeriesItem;
+
       state.currentPlayingMeta = null;
       updateLiveChannelSelector();
       state.isClosingPlayer = false;
+      state.playerReturnMode = null;
+      state.playerReturnSeriesItem = null;
+
+      // Retornar ao modal da série de onde o episódio foi aberto.
+      if (returnMode === 'series-modal' && returnSeriesItem) {
+        setTimeout(() => {
+          if (!$('player-overlay')?.classList.contains('show')) {
+            openSeriesModal(returnSeriesItem);
+          }
+        }, 0);
+      }
 
       // Atualizar tela de histórico se estiver aberta
       if (state.contentSubView === 'history') renderHistory();
@@ -4437,11 +4521,7 @@
     $('ctrlFullscreen').onclick = (e) => {
       e.stopPropagation();
       if (document.body.classList.contains('electron-fullscreen') || document.fullscreenElement) {
-        if (!isAppNativeFullscreen() && window.wrbDesktop?.setFullscreen) window.wrbDesktop.setFullscreen(false);
-        if (!isAppNativeFullscreen() && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
-        document.body.classList.remove('electron-fullscreen');
-        showMiniPlayer();
-        showControls();
+        exitPlayerFullscreenToPrevious();
       } else {
         showFullscreenPlayer();
       }
@@ -4505,6 +4585,15 @@
       if (e.clientX === lastMouseX && e.clientY === lastMouseY) return;
       lastMouseX = e.clientX;
       lastMouseY = e.clientY;
+
+      // No fullscreen do player, o X flutuante acompanha o movimento
+      // do mouse no topo, sem exigir qualquer clique no mini player.
+      if (
+        document.body.classList.contains('electron-fullscreen') ||
+        $('player-overlay')?.classList.contains('show')
+      ) {
+        $('playerFloatingHeader')?.classList.add('visible');
+      }
       showControls();
     });
 
@@ -4523,22 +4612,11 @@
     // Botões do header flutuante cinema
     $('floatingBackBtn').onclick = (e) => {
       e.stopPropagation();
-      if (document.body.classList.contains('electron-fullscreen') || document.fullscreenElement) {
-        if (!isAppNativeFullscreen() && window.wrbDesktop?.setFullscreen) window.wrbDesktop.setFullscreen(false);
-        if (!isAppNativeFullscreen() && document.fullscreenElement) document.exitFullscreen().catch(() => {});
-        document.body.classList.remove('electron-fullscreen');
-        if (state.currentPlayingMeta?.type === 'live') {
-          showMiniPlayer();
-        } else {
-          closePlayer();
-        }
-      } else {
-        closePlayer();
-      }
+      exitPlayerFullscreenToPrevious();
     };
     $('floatingCloseBtn').onclick = (e) => {
       e.stopPropagation();
-      closePlayer();
+      exitPlayerFullscreenToPrevious();
     };
 
     document.addEventListener('fullscreenchange', () => {
@@ -4559,25 +4637,31 @@
 
     // KEYBOARD & D-PAD NAVIGATION FOR TV BOX & POWER USERS
     window.addEventListener('keydown', (e) => {
-      // ESC sai do fullscreen geral do aplicativo e volta ao tamanho normal.
-      if (e.key === 'Escape' && isAppNativeFullscreen()) {
-        setAppNativeFullscreen(false);
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-
       if (e.key === 'Escape') {
-        if (document.body.classList.contains('electron-fullscreen')) {
-          if (state.currentPlayingMeta?.type === 'live') {
-            if (window.wrbDesktop?.setFullscreen) window.wrbDesktop.setFullscreen(false);
-            document.body.classList.remove('electron-fullscreen');
-            showMiniPlayer();
-            showControls();
-          } else if (state.currentPlayingMeta) {
-            closePlayer();
-          }
+        // Dentro do player, ESC sempre sai primeiro do fullscreen do player.
+        // Nunca deve tirar o aplicativo do modo TV enquanto o player estiver aberto.
+        if (
+          document.body.classList.contains('electron-fullscreen') &&
+          $('player-overlay')?.classList.contains('show')
+        ) {
+          exitPlayerFullscreenToPrevious();
           e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+
+        // Sem player aberto, ESC pode sair do fullscreen geral do aplicativo.
+        if (isAppNativeFullscreen()) {
+          setAppNativeFullscreen(false);
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+
+        if ($('player-overlay')?.classList.contains('show')) {
+          closePlayer();
+          e.preventDefault();
+          e.stopPropagation();
           return;
         }
         if ($('player-overlay').classList.contains('show')) closePlayer();

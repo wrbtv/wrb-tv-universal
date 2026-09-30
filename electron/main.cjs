@@ -63,6 +63,7 @@ let updateDownloadInProgress = false;
 let updateAvailableVersion = null;
 let updateCheckInProgress = false;
 let updateCheckTimer = null;
+let windowedBounds = null;
 
 function configureAutoUpdater() {
   if (!app.isPackaged) return;
@@ -152,7 +153,21 @@ ipcMain.handle('wrb:get-device-id', () => getDeviceId());
 
 ipcMain.handle('wrb:set-fullscreen', (_event, enabled) => {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
-  mainWindow.setFullScreen(!!enabled);
+  if (enabled) {
+    if (!mainWindow.isFullScreen()) {
+      windowedBounds = mainWindow.getBounds();
+      mainWindow.setFullScreen(true);
+    }
+  } else {
+    if (mainWindow.isFullScreen()) {
+      mainWindow.setFullScreen(false);
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed() && windowedBounds) {
+          mainWindow.setBounds(windowedBounds, false);
+        }
+      }, 150);
+    }
+  }
   return mainWindow.isFullScreen();
 });
 
@@ -237,6 +252,7 @@ function createWindow() {
     title: 'WRB-TV Player',
     icon: path.join(appRoot(), 'build', 'icon.ico'),
     fullscreenable: true,
+    fullscreen: true,
     webPreferences: {
       preload: path.join(appRoot(), 'electron', 'preload.cjs'),
       contextIsolation: true,
@@ -252,6 +268,23 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // Ao clicar no botão de maximizar da janela, entrar no modo TV/fullscreen.
+  mainWindow.on('maximize', () => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isFullScreen()) return;
+    mainWindow.setFullScreen(true);
+  });
+
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow.webContents.send('wrb:app-fullscreen-changed', true);
+  });
+
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow.webContents.send('wrb:app-fullscreen-changed', false);
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    }
   });
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

@@ -380,7 +380,10 @@
     .mini-player-host .player-container { max-height:none; }
     .mini-player-host .player-header { display:none; }
     .mini-player-host .custom-player-controls { opacity:1; visibility:visible; }
-    .mini-player-host .player-floating-header { opacity:1; visibility:visible; transform:none; }
+    /* Ações de retorno/fechamento existem somente no FullPlayer. */
+    .mini-player-host .player-floating-header,
+    .mini-player-host .floating-back-btn,
+    .mini-player-host .floating-close-btn { display:none !important; }
     .mini-player-host .video-viewport { cursor:pointer; }
     /* Ao Vivo: UMA ÚNICA COLUNA DE CANAIS */
     .content-grid-wrap .grid.live-grid { grid-template-columns:1fr; gap:10px; }
@@ -3262,6 +3265,8 @@
       const previousType = state.activeType;
 
       if (type === 'home') {
+        // Encerrar a mídia antes de trocar para Início, evitando áudio em segundo plano.
+        if (state.currentPlayingMeta) closePlayer();
         updateHeaderNav('home');
         $('view-app').classList.remove('active');
         $('wrb-home').style.display = 'block';
@@ -4349,6 +4354,8 @@
       state.isClosingPlayer = true;
       const overlay = $('player-overlay');
       const v = $('mainVideo');
+      // Silenciar imediatamente, antes de qualquer operação de fullscreen assíncrona.
+      try { v.pause(); } catch {}
       try {
         if (!isAppNativeFullscreen() && window.wrbDesktop?.setFullscreen) await window.wrbDesktop.setFullscreen(false);
         if (!isAppNativeFullscreen() && document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();

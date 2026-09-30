@@ -6,16 +6,17 @@
 
     <children>
         <Rectangle id="bg" width="1280" height="720" color="#05080D" />
+        <Rectangle translation="[0,0]" width="1280" height="720" color="#06101A" opacity="0.18" />
         <Rectangle id="topBar" width="1280" height="82" color="#070C14" />
 
-        <Label id="brand" text="WRB-TV" translation="[34,18]" width="190" height="46" font="font:LargeBoldSystemFont" color="#FFFFFF" />
+        <Label id="brand" text="WRB-TV" translation="[34,18]" width="175" height="46" font="font:LargeBoldSystemFont" color="#FFFFFF" />
         <Label id="pro" text="PRO" translation="[182,28]" width="55" height="28" font="font:SmallBoldSystemFont" color="#00D2FF" />
 
         <Group id="navGroup" translation="[360,17]">
-            <Button id="navHome" text="Início" width="150" height="48" />
-            <Button id="navLive" text="Ao Vivo" translation="[158,0]" width="150" height="48" />
-            <Button id="navMovies" text="Filmes" translation="[316,0]" width="150" height="48" />
-            <Button id="navSeries" text="Séries" translation="[474,0]" width="150" height="48" />
+            <Button id="navHome" text="Início" width="150" height="48" / showFocusFootprint="false">
+            <Button id="navLive" text="Ao Vivo" translation="[158,0]" width="150" height="48" / showFocusFootprint="false">
+            <Button id="navMovies" text="Filmes" translation="[316,0]" width="150" height="48" / showFocusFootprint="false">
+            <Button id="navSeries" text="Séries" translation="[474,0]" width="150" height="48" / showFocusFootprint="false">
         </Group>
 
         <Label id="deviceBadge" text="ROKU" translation="[1000,22]" width="135" height="28" color="#718096" horizAlign="right" />
@@ -36,17 +37,17 @@
             <TextEditBox id="passInput" translation="[270,438]" width="740" height="54" text="" secure="true" />
 
             <Label id="loginError" text="" translation="[270,495]" width="740" height="28" color="#FF7887" horizAlign="center" />
-            <Button id="loginButton" text="CONECTAR E ENTRAR" translation="[270,530]" width="740" height="52" />
+            <Button id="loginButton" text="CONECTAR E ENTRAR" translation="[270,530]" width="740" height="52" / showFocusFootprint="false">
         </Group>
 
         <Group id="homeView" translation="[0,82]" visible="false">
             <Label text="WRB-TV PLAYER PRO" translation="[170,25]" width="940" height="40" font="font:MediumBoldSystemFont" color="#8EA2B4" horizAlign="center" />
             <Group id="homeCards" translation="[170,90]">
-                <Button id="homeLive" text="Ao Vivo" width="280" height="180" />
-                <Button id="homeMovies" text="Filmes" translation="[295,0]" width="280" height="180" />
-                <Button id="homeSeries" text="Séries" translation="[590,0]" width="280" height="180" />
-                <Button id="homeFavs" text="Favoritos" translation="[145,200]" width="280" height="180" />
-                <Button id="homeExit" text="Sair" translation="[440,200]" width="280" height="180" />
+                <Button id="homeLive" text="Ao Vivo" width="280" height="180" / showFocusFootprint="false">
+                <Button id="homeMovies" text="Filmes" translation="[295,0]" width="280" height="180" / showFocusFootprint="false">
+                <Button id="homeSeries" text="Séries" translation="[590,0]" width="280" height="180" / showFocusFootprint="false">
+                <Button id="homeFavs" text="Favoritos" translation="[145,200]" width="280" height="180" / showFocusFootprint="false">
+                <Button id="homeExit" text="Sair" translation="[440,200]" width="280" height="180" / showFocusFootprint="false">
             </Group>
             <Label text="Entretenimento sem limites" translation="[250,590]" width="780" height="28" horizAlign="center" color="#637687" />
         </Group>

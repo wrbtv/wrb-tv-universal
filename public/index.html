@@ -2397,10 +2397,10 @@
     /* APP FULLSCREEN MODE */
     .app-fullscreen-exit {
       position: fixed;
-      top: 16px;
-      right: 16px;
-      width: 42px;
-      height: 42px;
+      top: 18px;
+      right: 18px;
+      width: 46px;
+      height: 46px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -2760,9 +2760,20 @@
       } catch (err) {
         console.warn('Fullscreen do aplicativo indisponível:', err);
       }
+
       document.body.classList.toggle('app-native-fullscreen', !!enabled);
-      if (!enabled) $('appFullscreenExit')?.classList.remove('visible');
-      else revealAppFullscreenExit();
+
+      if (!enabled) {
+        $('appFullscreenExit')?.classList.remove('visible');
+
+        // Dá tempo ao gerenciador de janelas para recriar a decoração
+        // nativa (minimizar, maximizar e fechar) antes de liberar a UI.
+        setTimeout(() => {
+          syncAppNativeFullscreen();
+        }, 300);
+      } else {
+        revealAppFullscreenExit();
+      }
     }
 
     async function syncAppNativeFullscreen() {
@@ -2776,14 +2787,13 @@
     document.addEventListener('mousemove', (e) => {
       if (!isAppNativeFullscreen() || $('player-overlay')?.classList.contains('show')) return;
 
-      // Exibe o X quando o cursor chega ao canto superior direito,
-      // mantendo a interface limpa no restante da tela.
-      const nearTopRight = e.clientX >= (window.innerWidth - 150) && e.clientY <= 110;
-      if (nearTopRight) revealAppFullscreenExit();
-      else if (!e.buttons) {
-        const btn = $('appFullscreenExit');
-        if (btn) btn.classList.remove('visible');
-      }
+      // No modo TV, qualquer movimento na faixa superior revela o X
+      // no canto superior direito. Ele desaparece novamente quando
+      // o cursor deixa a faixa superior.
+      const inTopArea = e.clientY <= 120;
+      const btn = $('appFullscreenExit');
+      if (inTopArea) revealAppFullscreenExit();
+      else if (!e.buttons && btn) btn.classList.remove('visible');
     });
 
 

@@ -61,50 +61,69 @@ let shuttingDown = false;
 
 let updateDownloadInProgress = false;
 let updateAvailableVersion = null;
+let updateCheckInProgress = false;
+let updateCheckTimer = null;
 
 function configureAutoUpdater() {
   if (!app.isPackaged) return;
 
-  // Atualização silenciosa: baixa automaticamente e instala na saída do app.
-  autoUpdater.autoDownload = true;
+  // Configuração explícita do GitHub para não depender somente do app-update.yml.
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: 'wrbtv',
+    repo: 'wrb-tv-universal',
+    releaseType: 'release'
+  });
+
+  // O download é disparado explicitamente no evento update-available.
+  // Isso torna o comportamento previsível e mantém a instalação automática no fechamento.
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowDowngrade = false;
+  autoUpdater.allowPrerelease = false;
   autoUpdater.logger = console;
 
   autoUpdater.on('checking-for-update', () => {
-    console.log('[WRB-TV] Verificando atualizações...');
+    updateCheckInProgress = true;
+    console.log(`[WRB-TV] Verificando atualizações. Versão instalada: ${app.getVersion()}`);
   });
 
-  autoUpdater.on('update-available', info => {
+  autoUpdater.on('update-available', async info => {
+    updateCheckInProgress = false;
     updateAvailableVersion = info.version;
-    console.log(`[WRB-TV] Atualização disponível: ${info.version}. Download automático iniciado.`);
+    console.log(`[WRB-TV] Atualização disponível: ${info.version}. Iniciando download automático.`);
+    await downloadAndInstallUpdate();
   });
 
-  autoUpdater.on('update-not-available', () => {
-    console.log('[WRB-TV] Nenhuma atualização disponível.');
+  autoUpdater.on('update-not-available', info => {
+    updateCheckInProgress = false;
+    console.log(`[WRB-TV] Nenhuma atualização disponível. Versão atual: ${info?.version || app.getVersion()}`);
   });
 
   autoUpdater.on('download-progress', progress => {
-    console.log(`[WRB-TV] Baixando atualização: ${Math.round(progress.percent)}%`);
+    console.log(`[WRB-TV] Baixando atualização: ${Math.round(progress.percent)}% - ${Math.round(progress.bytesPerSecond / 1024)} KB/s`);
   });
 
   autoUpdater.on('update-downloaded', info => {
     updateDownloadInProgress = false;
+    updateCheckInProgress = false;
     updateAvailableVersion = info.version;
     console.log(`[WRB-TV] Atualização ${info.version} baixada. Será instalada automaticamente ao fechar o aplicativo.`);
   });
 
   autoUpdater.on('error', error => {
     updateDownloadInProgress = false;
+    updateCheckInProgress = false;
     console.error('[WRB-TV] Erro no atualizador:', error);
   });
 }
 
 async function checkForUpdates() {
-  if (!app.isPackaged || updateDownloadInProgress) return;
+  if (!app.isPackaged || updateDownloadInProgress || updateCheckInProgress) return;
   try {
     await autoUpdater.checkForUpdates();
   } catch (error) {
+    updateCheckInProgress = false;
     console.error('[WRB-TV] Não foi possível verificar atualizações:', error);
   }
 }
@@ -116,14 +135,25 @@ async function downloadAndInstallUpdate() {
     await autoUpdater.downloadUpdate();
   } catch (error) {
     updateDownloadInProgress = false;
+    updateCheckInProgress = false;
     console.error('[WRB-TV] Falha ao baixar atualização:', error);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      dialog.showErrorBox(
-        'Atualização do WRB-TV Player',
-        'Não foi possível baixar a atualização agora. Tente novamente mais tarde.'
-      );
-    }
   }
+}
+
+function scheduleAutomaticUpdateChecks() {
+  if (!app.isPackaged) return;
+
+  // Verificação inicial após o player abrir.
+  setTimeout(() => checkForUpdates(), 3000);
+
+  // Repetição periódica para o caso de o programa estar aberto quando
+  // uma nova versão for publicada.
+  updateCheckTimer = setInterval(() => checkForUpdates(), 15 * 60 * 1000);
+
+  // Verifica novamente quando o usuário volta para a janela.
+  app.on('browser-window-focus', () => {
+    setTimeout(() => checkForUpdates(), 1500);
+  });
 }
 
 ipcMain.handle('wrb:get-device-id', () => getDeviceId());
@@ -280,11 +310,7 @@ app.whenReady().then(async () => {
 
   await boot();
 
-  // A primeira verificação ocorre alguns segundos após o aplicativo abrir,
-  // evitando atrasar o carregamento do player.
-  if (app.isPackaged) {
-    setTimeout(() => checkForUpdates(), 5000);
-  }
+  scheduleAutomaticUpdateChecks();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) boot();
@@ -293,6 +319,10 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   shuttingDown = true;
+  if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+    updateCheckTimer = null;
+  }
   stopLocalServer();
 });
 

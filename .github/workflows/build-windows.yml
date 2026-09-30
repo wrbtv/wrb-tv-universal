@@ -47,6 +47,7 @@ jobs:
           $exe = "release/WRB-TV-Player-Setup-$version-x64.exe"
           if (!(Test-Path $exe)) { Write-Error "Installer not found: $exe" }
           if (!(Test-Path "release/latest.yml")) { Write-Error "latest.yml not found in release/" }
+          if (!(Test-Path $exe + ".blockmap")) { Write-Error "blockmap not found: $exe.blockmap" }
           Get-ChildItem release | Select-Object Name, Length
 
       - name: Create or update GitHub Release
@@ -62,4 +63,4 @@ jobs:
             gh release create $tag --repo $env:GITHUB_REPOSITORY --title "WRB-TV Player $version" --notes "WRB-TV Player Windows $version" --latest
           }
 
-          gh release upload $tag "release/WRB-TV-Player-Setup-$version-x64.exe" "release/latest.yml" --repo $env:GITHUB_REPOSITORY --clobber
+          gh release upload $tag "release/WRB-TV-Player-Setup-$version-x64.exe" "release/WRB-TV-Player-Setup-$version-x64.exe.blockmap" "release/latest.yml" --repo $env:GITHUB_REPOSITORY --clobber

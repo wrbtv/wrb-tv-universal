@@ -3203,10 +3203,12 @@
       updateHeaderNav('home');
       $('wrb-home').style.display = 'block';
       hideMiniPlayer();
+      startWrbBusinessHeartbeat();
     }
 
     // LOGOUT
     $('logoutBtn').onclick = () => {
+      stopWrbBusinessHeartbeat();
       localStorage.removeItem('wrbtv_session');
       location.reload();
     };
@@ -4758,6 +4760,56 @@
         }
       }
     });
+
+    let wrbBusinessDeviceId = null;
+    let wrbBusinessHeartbeatTimer = null;
+    const WRB_BUSINESS_API = 'https://wrb-tv-business.netlify.app/api/v1/device';
+
+    async function getWrbBusinessDeviceId() {
+      if (wrbBusinessDeviceId) return wrbBusinessDeviceId;
+      try {
+        if (window.wrbDesktop && typeof window.wrbDesktop.getDeviceId === 'function') {
+          wrbBusinessDeviceId = await window.wrbDesktop.getDeviceId();
+        }
+      } catch (_) {}
+      if (!wrbBusinessDeviceId) {
+        wrbBusinessDeviceId = localStorage.getItem('wrbtv_device_id') || null;
+      }
+      return wrbBusinessDeviceId;
+    }
+
+    async function wrbBusinessHeartbeat() {
+      try {
+        const deviceId = await getWrbBusinessDeviceId();
+        if (!deviceId) return;
+        const response = await fetch(WRB_BUSINESS_API + '/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            device_id: deviceId,
+            app_id: 'WRB-TV Universal',
+            platform: navigator.userAgent.includes('Windows') ? 'Windows' : 'Desktop',
+            version: '2.0.44',
+            username: state.session?.user || '',
+            client: state.session?.info?.username || ''
+          })
+        });
+        if (!response.ok) return;
+      } catch (_) {}
+    }
+
+    function startWrbBusinessHeartbeat() {
+      if (wrbBusinessHeartbeatTimer) clearInterval(wrbBusinessHeartbeatTimer);
+      wrbBusinessHeartbeatTimer = setInterval(wrbBusinessHeartbeat, 30000);
+      wrbBusinessHeartbeat();
+    }
+
+    function stopWrbBusinessHeartbeat() {
+      if (wrbBusinessHeartbeatTimer) {
+        clearInterval(wrbBusinessHeartbeatTimer);
+        wrbBusinessHeartbeatTimer = null;
+      }
+    }
 
     async function loadDeviceId() {
       const field = $('deviceIdDisplay');

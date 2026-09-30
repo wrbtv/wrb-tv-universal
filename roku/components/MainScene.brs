@@ -357,37 +357,56 @@ sub loadContent(data as Object)
     itemCount = 0
 
     for each item in data
-        if item = invalid then continue
+        if item <> invalid
+            n = CreateObject("roSGNode", "ContentNode")
+            validItem = true
 
-        n = CreateObject("roSGNode", "ContentNode")
+            if m.currentType = "live"
+                if item.stream_id <> invalid
+                    n.title = item.name
+                    n.hdPosterUrl = item.stream_icon
+                    n.url = m.activeServer + "/live/" + m.user.EncodeUriComponent() + "/" + m.pass.EncodeUriComponent() + "/" + item.stream_id.ToStr() + ".m3u8"
+                    n.streamFormat = "hls"
+                else
+                    validItem = false
+                end if
+            else if m.currentType = "movies"
+                if item.stream_id <> invalid
+                    n.title = item.name
+                    n.hdPosterUrl = item.stream_icon
+                    ext = item.container_extension
+                    if ext = invalid or Len(ext) = 0 then ext = "mp4"
+                    n.url = m.activeServer + "/movie/" + m.user.EncodeUriComponent() + "/" + m.pass.EncodeUriComponent() + "/" + item.stream_id.ToStr() + "." + ext
+                    n.streamFormat = "mp4"
+                else
+                    validItem = false
+                end if
+            else
+                if item.series_id <> invalid
+                    n.title = item.name
+                    n.hdPosterUrl = item.cover
+                    n.seriesId = item.series_id
+                else
+                    validItem = false
+                end if
+            end if
 
-        if m.currentType = "live"
-            if item.stream_id = invalid then continue
-            n.title = item.name
-            n.hdPosterUrl = item.stream_icon
-            n.url = m.activeServer + "/live/" + m.user.EncodeUriComponent() + "/" + m.pass.EncodeUriComponent() + "/" + item.stream_id.ToStr() + ".m3u8"
-            n.streamFormat = "hls"
-        else if m.currentType = "movies"
-            if item.stream_id = invalid then continue
-            n.title = item.name
-            n.hdPosterUrl = item.stream_icon
-            ext = item.container_extension
-            if ext = invalid or Len(ext) = 0 then ext = "mp4"
-            n.url = m.activeServer + "/movie/" + m.user.EncodeUriComponent() + "/" + m.pass.EncodeUriComponent() + "/" + item.stream_id.ToStr() + "." + ext
-            n.streamFormat = "mp4"
-        else
-            if item.series_id = invalid then continue
-            n.title = item.name
-            n.hdPosterUrl = item.cover
-            n.seriesId = item.series_id
+            if validItem
+                root.AppendChild(n)
+                itemCount = itemCount + 1
+            end if
         end if
-
-        root.AppendChild(n)
-        itemCount = itemCount + 1
     end for
 
     m.grid.content = root
-    m.top.findNode("sectionTitle").text = m.currentType = "live" ? "Canais" : m.currentType = "movies" ? "Filmes" : "Séries"
+
+    sectionTitle = "Canais"
+    if m.currentType = "movies"
+        sectionTitle = "Filmes"
+    else if m.currentType = "series"
+        sectionTitle = "Séries"
+    end if
+    m.top.findNode("sectionTitle").text = sectionTitle
     m.top.findNode("sectionCount").text = itemCount.ToStr() + " itens"
     m.grid.setFocus(true)
 end sub

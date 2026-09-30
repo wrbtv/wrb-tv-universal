@@ -1,6 +1,6 @@
 {
   "name": "wrb-tv-player",
-  "version": "2.0.31",
+  "version": "2.0.32",
   "description": "WRB-TV Player Desktop com servidor local integrado",
   "private": true,
   "type": "module",

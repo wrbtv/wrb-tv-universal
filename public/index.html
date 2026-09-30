@@ -2398,34 +2398,35 @@
     .app-fullscreen-exit {
       position: fixed;
       top: 18px;
-      right: 18px;
-      width: 46px;
-      height: 46px;
+      left: 50%;
+      right: auto;
+      width: 48px;
+      height: 48px;
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 1px solid rgba(255,255,255,.14);
-      border-radius: 12px;
-      background: rgba(7,13,21,.78);
-      color: rgba(255,255,255,.86);
-      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 14px;
+      background: rgba(7,13,21,.84);
+      color: rgba(255,255,255,.92);
+      box-shadow: 0 10px 30px rgba(0,0,0,.40);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       cursor: pointer;
       z-index: 1000000;
       opacity: 0;
       visibility: hidden;
-      transform: translateY(-8px) scale(.96);
+      transform: translate(-50%, -10px) scale(.96);
       pointer-events: none;
       transition: opacity .18s ease, transform .18s ease, background .18s ease, border-color .18s ease;
-      font-size: 18px;
+      font-size: 21px;
       font-weight: 700;
     }
 
     body.app-native-fullscreen .app-fullscreen-exit.visible {
       opacity: 1;
       visibility: visible;
-      transform: translateY(0) scale(1);
+      transform: translate(-50%, 0) scale(1);
       pointer-events: auto;
     }
 
@@ -4749,9 +4750,10 @@
     }
 
     if ($('appFullscreenExit')) {
-      $('appFullscreenExit').onclick = (e) => {
+      $('appFullscreenExit').onclick = async (e) => {
         e.stopPropagation();
-        setAppNativeFullscreen(false);
+        await setAppNativeFullscreen(false);
+        setTimeout(() => syncAppNativeFullscreen(), 350);
       };
     }
 

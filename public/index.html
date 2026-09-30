@@ -3213,18 +3213,21 @@
 
     // NAV TABS (LIVE, MOVIES, SERIES, FAVS)
     document.querySelectorAll('.nav-tab').forEach(tab => {
-      tab.onclick = () => setType(tab.dataset.type);
+      tab.onclick = async () => {
+        try { await setType(tab.dataset.type); }
+        catch (err) { console.warn('Falha ao trocar de módulo:', err); }
+      };
     });
 
     document.querySelectorAll('[data-home-type]').forEach(btn => {
-      btn.onclick = () => {
+      btn.onclick = async () => {
         $('wrb-home').style.display = 'none';
         $('view-app').classList.add('active');
         if (btn.dataset.homeType === 'favs') {
-          setType('live');
+          await setType('live');
           enterSubView('favorites');
         } else {
-          setType(btn.dataset.homeType);
+          await setType(btn.dataset.homeType);
         }
       };
     });
@@ -3260,13 +3263,16 @@
       if (activeButton && activeButton.dataset.type !== 'history' && activeButton.dataset.type !== 'favs') activeButton.classList.add('active');
     }
 
-    function setType(type) {
+    async function setType(type) {
       $('view-login').classList.add('login-hidden');
       const previousType = state.activeType;
 
       if (type === 'home') {
-        // Encerrar a mídia antes de trocar para Início, evitando áudio em segundo plano.
-        if (state.currentPlayingMeta) closePlayer();
+        // Ao retornar para Início, encerrar completamente o player antes
+        // de exibir a tela principal, evitando áudio/stream em segundo plano.
+        if (state.currentPlayingMeta || state.hlsInstance || state.mpegtsInstance) {
+          try { await closePlayer(); } catch (_) {}
+        }
         updateHeaderNav('home');
         $('view-app').classList.remove('active');
         $('wrb-home').style.display = 'block';
@@ -3897,6 +3903,7 @@
       $('player-overlay').appendChild(playerContainerEl);
       playerContainerEl.classList.remove('mini-mode');
       $('player-overlay').classList.add('show');
+      $('playerFloatingHeader')?.classList.add('visible');
 
       // No aplicativo Windows, usamos o fullscreen nativo do Electron.
       // Isso remove a barra da janela e ocupa 100% do monitor.
@@ -4589,7 +4596,10 @@
       const h = $('playerFloatingHeader');
       const vp = $('videoViewport');
       if (c) c.classList.add('visible');
-      if (h) h.classList.toggle('visible', !document.fullscreenElement);
+      if (h) {
+        const mini = playerContainerEl?.classList.contains('mini-mode');
+        h.classList.toggle('visible', !mini);
+      }
       if (vp) vp.classList.remove('idle-cursor');
       updateFloatingClock();
 

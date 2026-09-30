@@ -6,17 +6,18 @@
 
     <children>
         <Rectangle id="bg" width="1280" height="720" color="#05080D" />
-        <Rectangle translation="[0,0]" width="1280" height="720" color="#06101A" opacity="0.14" />
+        <Rectangle translation="[0,0]" width="1280" height="720" color="#06101A" opacity="0.16" />
 
         <Rectangle id="topBar" width="1280" height="82" color="#070C14" />
-        <Rectangle translation="[0,81]" width="1280" height="1" color="#0E2633" />
-        <Rectangle translation="[0,80]" width="1280" height="2" color="#00C8F0" opacity="0.16" />
+        <Rectangle translation="[0,80]" width="1280" height="2" color="#00D2FF" opacity="0.18" />
 
-        <Poster id="brandLogo" uri="pkg:/images/icon_focus_hd.png" translation="[28,14]" width="62" height="62" />
-        <Label id="brand" text="WRB-TV" translation="[98,16]" width="165" height="46" font="font:LargeBoldSystemFont" color="#F7FBFF" />
-        <Label id="pro" text="PRO" translation="[262,25]" width="56" height="28" font="font:SmallBoldSystemFont" color="#00D2FF" />
+        <Poster id="brandLogo" uri="pkg:/images/icon_focus_hd.png" translation="[26,12]" width="62" height="62" />
+        <Label id="brand" text="WRB-TV" translation="[96,14]" width="165" height="46"
+            font="font:LargeBoldSystemFont" color="#F7FBFF" />
+        <Label id="pro" text="PRO" translation="[262,23]" width="58" height="30"
+            font="font:SmallBoldSystemFont" color="#00D2FF" />
 
-        <Group id="navGroup" translation="[390,17]">
+        <Group id="navGroup" translation="[390,17]" visible="false">
             <Rectangle translation="[-7,-5]" width="560" height="58" color="#08121B" opacity="0.92" />
             <Button id="navHome" text="Início" width="130" height="48"
                 textColor="#AEBFCC" focusedTextColor="#061019"
@@ -36,47 +37,51 @@
                 iconUri=" " focusedIconUri=" " />
         </Group>
 
-        <Rectangle translation="[1020,18]" width="103" height="40" color="#09131C" opacity="0.94" />
-        <Label id="deviceBadge" text="ROKU" translation="[1025,24]" width="94" height="28"
-            color="#647B8E" horizAlign="right" font="font:SmallSystemFont" />
-        <Rectangle translation="[1128,18]" width="134" height="40" color="#09131C" opacity="0.94" />
-        <Label id="userBadge" text="" translation="[1136,24]" width="118" height="28"
-            color="#DDE7F0" horizAlign="right" font="font:SmallSystemFont" />
+        <Group id="loginActions" translation="[1040,18]">
+            <Label id="deviceBadge" text="ROKU" translation="[0,6]" width="92" height="28"
+                color="#63798C" horizAlign="right" font="font:SmallSystemFont" visible="false" />
+            <Rectangle translation="[96,0]" width="134" height="40" color="#09131C" opacity="0.94" visible="false" />
+            <Label id="userBadge" text="" translation="[104,6]" width="118" height="28"
+                color="#DDE7F0" horizAlign="right" font="font:SmallSystemFont" visible="false" />
+        </Group>
 
         <Group id="loginView" translation="[0,82]" visible="true">
-            <Rectangle translation="[248,35]" width="784" height="575" color="#09131D" opacity="0.98" />
-            <Rectangle translation="[249,36]" width="782" height="1" color="#00D2FF" opacity="0.28" />
-            <Rectangle translation="[280,200]" width="720" height="335" color="#071019" opacity="0.90" />
+            <Rectangle translation="[270,28]" width="740" height="600" color="#09131D" opacity="0.98" />
+            <Rectangle translation="[271,29]" width="738" height="1" color="#00D2FF" opacity="0.28" />
 
-            <Poster id="loginLogo" uri="pkg:/images/icon_focus_hd.png" translation="[575,48]" width="130" height="130" />
+            <Poster id="loginLogo" uri="pkg:/images/icon_focus_hd.png"
+                translation="[575,44]" width="130" height="130" />
 
-            <Label text="Seu Player IPTV Universal" translation="[270,190]" width="740" height="44"
+            <Label text="Seu Player IPTV Universal" translation="[300,182]" width="680" height="46"
                 font="font:LargeBoldSystemFont" color="#F4F7FA" horizAlign="center" />
-            <Label text="Canais ao vivo, filmes e séries através de Xtream Codes" translation="[285,236]" width="710" height="28"
+            <Label text="Canais ao vivo, filmes e séries através de Xtream Codes"
+                translation="[310,230]" width="660" height="30"
                 font="font:SmallSystemFont" color="#7F93A6" horizAlign="center" />
 
-            <Label text="CÓDIGO / DNS DO SERVIDOR" translation="[300,280]" width="680" height="24"
-                font="font:SmallBoldSystemFont" color="#8CA0B5" />
-            <TextEditBox id="serverInput" translation="[300,308]" width="680" height="50"
-                text="" hintText="http://servidor:porta" maxTextLength="120" clearOnDownKey="false"
-                backgroundUri="pkg:/images/input.9.png" textColor="#F2F7FB" hintTextColor="#63798C" />
+            <Rectangle translation="[310,272]" width="660" height="292" color="#071019" opacity="0.94" />
 
-            <Label text="USUÁRIO" translation="[300,372]" width="680" height="24"
+            <Label text="CÓDIGO / DNS DO SERVIDOR" translation="[335,290]" width="610" height="22"
                 font="font:SmallBoldSystemFont" color="#8CA0B5" />
-            <TextEditBox id="userInput" translation="[300,400]" width="680" height="50"
-                text="" hintText="Seu usuário" maxTextLength="75" clearOnDownKey="false"
-                backgroundUri="pkg:/images/input.9.png" textColor="#F2F7FB" hintTextColor="#63798C" />
+            <Button id="serverInput" text="http://servidor:porta" translation="[335,318]" width="610" height="50"
+                textColor="#64798B" focusedTextColor="#F2F7FB"
+                focusBitmapUri="pkg:/images/focus.9.png" iconUri=" " focusedIconUri=" " />
 
-            <Label text="SENHA" translation="[300,464]" width="680" height="24"
+            <Label text="USUÁRIO" translation="[335,383]" width="610" height="22"
                 font="font:SmallBoldSystemFont" color="#8CA0B5" />
-            <TextEditBox id="passInput" translation="[300,492]" width="680" height="50"
-                text="" hintText="Sua senha" maxTextLength="75" clearOnDownKey="false"
-                backgroundUri="pkg:/images/input.9.png" textColor="#F2F7FB" hintTextColor="#63798C" secureMode="true" />
+            <Button id="userInput" text="Seu usuário" translation="[335,411]" width="610" height="50"
+                textColor="#64798B" focusedTextColor="#F2F7FB"
+                focusBitmapUri="pkg:/images/focus.9.png" iconUri=" " focusedIconUri=" " />
 
-            <Label id="loginError" text="" translation="[300,548]" width="680" height="22"
+            <Label text="SENHA" translation="[335,476]" width="610" height="22"
+                font="font:SmallBoldSystemFont" color="#8CA0B5" />
+            <Button id="passInput" text="Sua senha" translation="[335,504]" width="610" height="50"
+                textColor="#64798B" focusedTextColor="#F2F7FB"
+                focusBitmapUri="pkg:/images/focus.9.png" iconUri=" " focusedIconUri=" " />
+
+            <Label id="loginError" text="" translation="[335,562]" width="610" height="22"
                 color="#FF7180" horizAlign="center" font="font:SmallSystemFont" />
 
-            <Button id="loginButton" text="CONECTAR E ENTRAR" translation="[300,573]" width="680" height="46"
+            <Button id="loginButton" text="CONECTAR E ENTRAR" translation="[335,590]" width="610" height="50"
                 textColor="#AEBFCC" focusedTextColor="#061019"
                 focusBitmapUri="pkg:/images/focus.9.png" iconUri=" " focusedIconUri=" " />
         </Group>
@@ -131,11 +136,6 @@
                     focusBitmapUri="pkg:/images/focus.9.png" iconUri=" " focusedIconUri=" " />
             </Group>
         </Group>
-
-        <Rectangle id="statusPanel" translation="[385,610]" width="510" height="48"
-            color="#0C1823" visible="false" />
-        <Label id="statusText" text="" translation="[405,622]" width="470" height="28"
-            horizAlign="center" color="#8EA2B4" />
 
         <Group id="blockedView" visible="false">
             <Rectangle translation="[270,170]" width="740" height="380" color="#0B121C" />

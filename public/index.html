@@ -4109,26 +4109,6 @@
         }
       }
 
-      // Séries/VOD: alguns servidores entregam o episódio e o Chromium dispara
-      // um pause transitório durante a troca de fonte/fullscreen. Guardamos uma
-      // janela curta de inicialização para garantir que o episódio continue tocando
-      // sem interferir em uma pausa manual feita pelo usuário.
-      let vodAutoplayGuardUntil = 0;
-      let vodAutoplayTimer = null;
-
-      const forceVodAutoplay = (reason = 'startup') => {
-        if (!meta || meta.type === 'live') return;
-        if (Date.now() > vodAutoplayGuardUntil) return;
-        if (!v || v.ended) return;
-        if (!v.paused) return;
-
-        clearTimeout(vodAutoplayTimer);
-        vodAutoplayTimer = setTimeout(() => {
-          if (!meta || meta.type === 'live' || v.ended || !v.paused) return;
-          v.play().catch(e => console.warn(`[WRB-TV] VOD/Série play retry (${reason}):`, e));
-        }, 120);
-      };
-
       const setupTracking = () => {
         v.controls = false;
         let lastSave = 0;
@@ -4143,8 +4123,6 @@
 
         v.onpause = () => {
           if (v.duration) saveWatchProgress(state.currentPlayingMeta, v.currentTime, v.duration);
-          // Não deixar o episódio de série ficar pausado durante a inicialização.
-          forceVodAutoplay('pause-event');
         };
 
         v.onended = () => {
@@ -4247,15 +4225,6 @@
 
       const playStream = (streamUrl) => {
         setupTracking();
-
-        // Filmes e Séries devem iniciar sempre em reprodução automática.
-        // A janela de proteção cobre a troca de fonte e a entrada no fullscreen.
-        if (meta?.type !== 'live') {
-          vodAutoplayGuardUntil = Date.now() + 7000;
-          v.autoplay = true;
-          try { v.playsInline = true; } catch {}
-        }
-
         const finalUrl = getProxiedStreamUrl(streamUrl);
         const isM3u8 = /\.m3u8($|\?)/i.test(streamUrl);
         const isTs = /\.ts($|\?)/i.test(streamUrl);
@@ -4270,11 +4239,7 @@
           state.hlsInstance.attachMedia(v);
           state.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
             activateServer(new URL(streamUrl).origin);
-            v.play().catch(e => {
-              console.warn('HLS autoplay blocked:', e);
-              forceVodAutoplay('hls-play-reject');
-            });
-            forceVodAutoplay('hls-manifest');
+            v.play().catch(e => console.warn('HLS autoplay blocked:', e));
           });
           state.hlsInstance.on(Hls.Events.ERROR, (event, data) => {
             if (!data.fatal) return;
@@ -4312,10 +4277,8 @@
           state.mpegtsInstance.load();
           state.mpegtsInstance.play().catch(e => {
             console.warn('mpegts autoplay blocked:', e);
-            forceVodAutoplay('mpegts-play-reject');
             tryServerFailover(streamUrl, 'MPEG-TS');
           });
-          forceVodAutoplay('mpegts-start');
         } else {
           v.src = finalUrl;
           v.onerror = () => {
@@ -4325,17 +4288,8 @@
             }
             tryServerFailover(streamUrl, 'Vídeo');
           };
-
-          v.onloadedmetadata = () => forceVodAutoplay('loadedmetadata');
-          v.oncanplay = () => forceVodAutoplay('canplay');
-          v.onplaying = () => {
-            vodAutoplayGuardUntil = 0;
-            clearTimeout(vodAutoplayTimer);
-          };
-
           v.play().catch(e => {
             console.warn('Native video autoplay blocked:', e);
-            forceVodAutoplay('play-reject');
           });
         }
       };

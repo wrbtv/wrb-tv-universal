@@ -11,6 +11,47 @@ const SERVER_POOLS = Object.freeze({
 
 const REQUEST_TIMEOUT_MS = 8000;
 
+// Ponte remoto para o Node.js hospedado no Cloudflare Container.
+// Usado somente pelos códigos 0022/PFAST. DNS informado manualmente
+// continua seguindo o fluxo direto existente.
+const WRB_TV_CLOUD_GATEWAY = "https://wrb-tv-smart-gateway.wrbtv-official22.workers.dev";
+
+function isRemoteCode(value) {
+  const code = String(value || "").trim().toUpperCase();
+  return code === "0022" || code === "PFAST";
+}
+
+async function callCloudGateway(payload) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+  try {
+    const response = await fetch(WRB_TV_CLOUD_GATEWAY + "/api", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "accept": "application/json"
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+
+    const text = await response.text();
+    let data = null;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = {
+        error: text || "Resposta inválida do gateway remoto."
+      };
+    }
+
+    return { response, data };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function normalizeServer(value) {
   let server = String(value || "").trim();
   if (!server) return "";
@@ -74,9 +115,38 @@ export async function onRequestPost(context) {
 
   try {
     const requestedServer = String(b.server || "").trim();
-    const serverCandidates = resolveServerCandidates(requestedServer, b.serverCandidates);
+    const requestedCode = String(b.serverCode || requestedServer).trim().toUpperCase();
     const u = String(b.user || "");
     const p = String(b.pass || "");
+
+    // Para 0022/PFAST, usar o Node.js hospedado no Cloudflare Container.
+    // O restante do Windows permanece no mesmo contrato /api e no mesmo fluxo.
+    if (isRemoteCode(requestedCode)) {
+      try {
+        const remote = await callCloudGateway({
+          ...b,
+          server: requestedCode,
+          serverCode: requestedCode,
+          user: u,
+          pass: p
+        });
+
+        if (remote.response.ok || remote.response.status >= 400 && remote.response.status < 500) {
+          return new Response(JSON.stringify(remote.data), {
+            status: remote.response.status,
+            headers: {
+              "content-type": "application/json; charset=utf-8",
+              "cache-control": "no-store",
+              "access-control-allow-origin": "*"
+            }
+          });
+        }
+      } catch (error) {
+        console.warn("[WRB-TV] Gateway Cloudflare indisponível:", error?.message || error);
+      }
+    }
+
+    const serverCandidates = resolveServerCandidates(requestedServer, b.serverCandidates);
 
     if (b.action !== "m3u" && (!serverCandidates.length || !u || !p)) {
       return Response.json({ error: "Servidor, usuário e senha são obrigatórios." }, { status: 400, headers: jsonHeaders });

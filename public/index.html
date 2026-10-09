@@ -2728,6 +2728,7 @@
       categories: { live: [], movies: [], series: [] },
       activeCategoryId: null,
       cachedItems: {}, // key: type_catId -> array
+      globalSearchPromises: {}, // evita chamadas duplicadas durante a busca global
       allStreamsM3u: [], // for m3u mode
       favorites: JSON.parse(localStorage.getItem('wrbtv_favs') || '[]'),
       history: JSON.parse(localStorage.getItem('wrbtv_history') || '[]'),
@@ -3462,6 +3463,12 @@
       $('activeCatTitle').textContent = catTitle;
       $('activeCatCount').textContent = 'Carregando...';
 
+      // Enquanto há uma busca digitada, o resultado ignora a categoria selecionada.
+      if (($('contentSearch').value || '').trim()) {
+        await renderGlobalSearchResults();
+        return;
+      }
+
       const cacheKey = `${state.activeType}_${catId}`;
 
       // Check cache first
@@ -3618,10 +3625,80 @@
       }
     }
 
+    async function renderGlobalSearchResults() {
+      const type = state.activeType;
+      const query = ($('contentSearch').value || '').toLowerCase().trim();
+      if (!query || !['live', 'movies', 'series'].includes(type) || state.contentSubView) return;
+
+      const cacheKey = `${type}_*`;
+
+      try {
+        let items;
+        if (state.allStreamsM3u.length > 0) {
+          if (!Object.prototype.hasOwnProperty.call(state.cachedItems, cacheKey)) {
+            state.cachedItems[cacheKey] = state.allStreamsM3u.filter(item => item.type === type);
+          }
+          items = state.cachedItems[cacheKey];
+        } else if (Object.prototype.hasOwnProperty.call(state.cachedItems, cacheKey)) {
+          items = state.cachedItems[cacheKey];
+        } else {
+          let pending = state.globalSearchPromises[cacheKey];
+          if (!pending) {
+            pending = apiCall({
+              action: 'get_category_streams',
+              type,
+              categoryId: '*',
+              server: state.session.server,
+              user: state.session.user,
+              pass: state.session.pass
+            }).then(res => {
+              if (res?.error) throw new Error(res.error);
+              const allItems = Array.isArray(res?.items) ? res.items : [];
+              state.cachedItems[cacheKey] = allItems;
+              return allItems;
+            }).finally(() => {
+              delete state.globalSearchPromises[cacheKey];
+            });
+            state.globalSearchPromises[cacheKey] = pending;
+          }
+          $('contentGrid').innerHTML = '<div class="empty-state"><span class="spinner"></span><p style="margin-top:12px">Buscando em todo o conteúdo...</p></div>';
+          items = await pending;
+        }
+
+        // Descartar respostas antigas se o usuário mudou de aba ou de texto.
+        if (
+          state.activeType !== type ||
+          state.contentSubView ||
+          ($('contentSearch').value || '').toLowerCase().trim() !== query
+        ) return;
+
+        renderItems(items);
+      } catch (err) {
+        if (
+          state.activeType !== type ||
+          state.contentSubView ||
+          ($('contentSearch').value || '').toLowerCase().trim() !== query
+        ) return;
+        $('contentGrid').innerHTML = `<div class="empty-state"><p style="color:var(--danger)">Erro ao buscar conteúdo: ${esc(err.message || 'Falha na busca global.')}</p></div>`;
+        $('activeCatCount').textContent = '0';
+      }
+    }
+
     $('contentSearch').oninput = () => {
-      const cacheKey = `${state.activeType}_${state.activeCategoryId}`;
+      const type = state.activeType;
+      if (!['live', 'movies', 'series'].includes(type) || state.contentSubView) return;
+
+      const query = ($('contentSearch').value || '').trim();
+      if (query) {
+        void renderGlobalSearchResults();
+        return;
+      }
+
+      const cacheKey = `${type}_${state.activeCategoryId}`;
       if (state.cachedItems[cacheKey]) {
         renderItems(state.cachedItems[cacheKey]);
+      } else if (state.activeCategoryId != null) {
+        void selectCategory(String(state.activeCategoryId));
       }
     };
 

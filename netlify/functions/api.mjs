@@ -5,6 +5,24 @@ async function proxyStreamRequest(req, rawTarget) {
     if (!["http:", "https:"].includes(targetUrl.protocol) || !targetUrl.hostname) {
       return new Response("URL de mídia inválida.", { status: 400 });
     }
+    // This is a public streaming endpoint. Block obvious loopback, private and cloud-metadata targets.
+    const host = targetUrl.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (
+      host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") ||
+      host === "metadata.google.internal" ||
+      host === "::1" || host === "::" || host.startsWith("fc") || host.startsWith("fd") ||
+      host.startsWith("fe80:") ||
+      (ipv4 && (
+        Number(ipv4[1]) === 0 || Number(ipv4[1]) === 10 ||
+        Number(ipv4[1]) === 127 || Number(ipv4[1]) >= 224 ||
+        (Number(ipv4[1]) === 169 && Number(ipv4[2]) === 254) ||
+        (Number(ipv4[1]) === 172 && Number(ipv4[2]) >= 16 && Number(ipv4[2]) <= 31) ||
+        (Number(ipv4[1]) === 192 && Number(ipv4[2]) === 168)
+      ))
+    ) {
+      return new Response("Destino de mídia não permitido.", { status: 400 });
+    }
     if (targetUrl.origin === requestUrl.origin && targetUrl.pathname.startsWith("/api/stream")) {
       return new Response("Destino de proxy inválido.", { status: 400 });
     }

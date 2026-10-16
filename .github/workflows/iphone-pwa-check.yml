@@ -1,0 +1,38 @@
+name: Validate WRB-TV iPhone PWA
+
+on:
+  push:
+    branches: [iphone-pwa]
+  pull_request:
+    branches: [iphone-pwa]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check serverless API syntax
+        run: node --check netlify/functions/api.mjs
+      - name: Check service worker syntax
+        run: node --check sw.js
+      - name: Validate manifest and PWA shell
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const manifest = JSON.parse(fs.readFileSync('manifest.webmanifest', 'utf8'));
+          const html = fs.readFileSync('index.html', 'utf8');
+          const api = fs.readFileSync('netlify/functions/api.mjs', 'utf8');
+          if (!manifest.name || manifest.name !== 'WRB-TV') throw new Error('Manifest name missing');
+          if (!manifest.icons?.length) throw new Error('Manifest icon missing');
+          if (!html.includes('apple-mobile-web-app-capable')) throw new Error('iOS home-screen meta missing');
+          if (!html.includes('/manifest.webmanifest')) throw new Error('Manifest link missing');
+          if (!api.includes('proxyStreamRequest')) throw new Error('Stream proxy missing');
+          if (!api.includes('serverPools')) throw new Error('Server pool support missing');
+          console.log('PWA manifest, iOS install metadata, serverless API and stream proxy checks passed.');
+          NODE

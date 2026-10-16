@@ -146,7 +146,7 @@ class _WRBTVAppState extends State<WRBTVApp> {
       final dynamic decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic> || decoded['tag_name'] != 'android-stable') return;
       final body = decoded['body']?.toString() ?? '';
-      final match = RegExp(r'(?m)^Version:\\s*(\\d+\\.\\d+\\.\\d+)\\s*$').firstMatch(body);
+      final match = RegExp(r'(?m)^Version:\s*(\d+\.\d+\.\d+)\s*$').firstMatch(body);
       if (match == null) return;
       final latestVersion = match.group(1)!;
       if (_compareVersions(latestVersion, installedVersion) <= 0) return;

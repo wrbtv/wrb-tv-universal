@@ -4669,6 +4669,17 @@
 
         // Open Season 1
         showSeasonEpisodes(seasons[0]);
+        // On TV/remote devices, focus the active season so Down reaches the episode list.
+        if (document.body.classList.contains('wrbtv-tv-device')) {
+          setTimeout(() => {
+            if (!$('series-modal')?.classList.contains('show')) return;
+            const activeSeason = $('seasonTabs')?.querySelector('.season-pill.active');
+            if (activeSeason) {
+              activeSeason.focus({ preventScroll: true });
+              activeSeason.scrollIntoView({ block: 'nearest' });
+            }
+          }, 0);
+        }
       } catch (err) {
         $('seriesModalPlot').textContent = `Falha ao carregar detalhes: ${err.message}`;
       }
@@ -5565,6 +5576,12 @@
     };
 
     window.addEventListener('keydown', (e) => {
+      // Detect a physical TV remote even on generic Android TV boxes that do not report Leanback.
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'NumpadEnter', 'BrowserBack', 'GoBack'].includes(e.key)) {
+        document.body.classList.add('wrbtv-tv-device');
+        document.documentElement.classList.add('wrbtv-tv-device');
+      }
+
       if (e.key === 'Escape' || e.key === 'BrowserBack' || e.key === 'GoBack') {
         if (document.body.classList.contains('electron-fullscreen') &&
             $('player-overlay')?.classList.contains('show')) {

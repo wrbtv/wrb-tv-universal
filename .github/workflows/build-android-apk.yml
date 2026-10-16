@@ -13,6 +13,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: wrbtv-android-apk-release
+  cancel-in-progress: false
+
 jobs:
   keep-signing-key-active:
     if: ${{ github.event_name == 'schedule' }}
@@ -92,7 +96,7 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/releases" --method POST \
               -F "tag_name=$TAG" -F "target_commitish=$GITHUB_SHA" \
               -F "name=WRB-TV Android $VERSION (Build $GITHUB_RUN_NUMBER)" \
-              -F "body=$NOTES" -F "draft=false" -F "prerelease=false" -F "make_latest=false" >/dev/null
+              -F "body=$NOTES" -F "draft=false" -F "prerelease=false" -f "make_latest=false" >/dev/null
             gh release upload "$TAG" WRB-PLAY-ANDROID.apk --repo "$GITHUB_REPOSITORY"
           fi
 
@@ -101,11 +105,11 @@ jobs:
               -F "tag_name=android-stable" -F "target_commitish=$GITHUB_SHA" \
               -F "name=WRB-TV Android Stable Download" \
               -F "body=WRB-TV Android stable Downloader package. Version: $VERSION" \
-              -F "draft=false" -F "prerelease=false" -F "make_latest=false" >/dev/null
+              -F "draft=false" -F "prerelease=false" -f "make_latest=false" >/dev/null
           fi
 
           gh release upload android-stable WRB-PLAY-ANDROID.apk --repo "$GITHUB_REPOSITORY" --clobber
-          STABLE_NOTES="WRB-TV Android public stable APK for Downloader.\nVersion: $VERSION\nBuild tag: $TAG\nUpdated automatically by GitHub Actions."
+          STABLE_NOTES="$(printf 'WRB-TV Android public stable APK for Downloader.\nVersion: %s\nBuild tag: %s\nUpdated automatically by GitHub Actions.' "$VERSION" "$TAG")"
           gh release edit android-stable --repo "$GITHUB_REPOSITORY" \
             --title "WRB-TV Android Stable Download" --notes "$STABLE_NOTES"
 

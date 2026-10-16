@@ -54,6 +54,17 @@ jobs:
           path: ~/.android/debug.keystore
           key: wrbtv-android-signing-certificate-v1
 
+      - name: Refuse incompatible builds if the signing key cache is missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.signing-cache.outputs.cache-hit }}" != "true" ] && gh release view android-stable --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::The signing key cache is missing while an Android release already exists. Refusing to publish an APK with a different signature."
+            exit 1
+          fi
+
       - name: Ensure persistent Android signing key exists
         shell: bash
         run: |

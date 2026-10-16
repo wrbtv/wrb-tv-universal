@@ -2,9 +2,18 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
-  <title>WRB-TV — Player Universal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; media-src * data: blob:; connect-src * data: blob:;">
+  <title>WRB-TV — iPhone</title>
+  <meta name="theme-color" content="#06090e">
+  <meta name="description" content="WRB-TV: sua experiência de TV, filmes e séries em um aplicativo web para iPhone.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="WRB-TV">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icon.png">
+  <link rel="icon" type="image/png" href="/icon.png">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <style>
@@ -827,6 +836,31 @@
       height: 100%;
       object-fit: contain;
     }
+
+    /* WRB-TV premium loading layer. Hidden when playback starts. */
+    #playerLoadingOverlay { position:absolute; inset:0; z-index:24; display:none; flex-direction:column; align-items:center; justify-content:center; gap:13px; padding:24px; box-sizing:border-box; text-align:center; background:radial-gradient(ellipse at 50% 42%,rgba(0,210,255,.11) 0%,rgba(8,17,29,.92) 36%,rgba(0,0,0,.985) 100%); backdrop-filter:blur(14px); pointer-events:none; }
+    #playerLoadingOverlay.visible { display:flex; }
+    .player-loading-brand { display:flex; align-items:center; gap:9px; margin-bottom:3px; color:#f3f8fc; font-weight:850; font-size:clamp(18px,2.2vw,27px); letter-spacing:.12em; text-shadow:0 0 24px rgba(0,210,255,.16); }
+    .player-loading-brand-mark { width:34px; height:34px; display:grid; place-items:center; border-radius:10px; color:#041018; background:linear-gradient(145deg,#31e3ff,#00a9e0); box-shadow:0 0 26px rgba(0,210,255,.24); }
+    .player-loading-spinner { width:43px; height:43px; border-radius:50%; border:3px solid rgba(0,210,255,.17); border-top-color:#00d2ff; border-right-color:rgba(0,210,255,.64); box-sizing:border-box; animation:wrbtv-loading-spin .82s linear infinite; box-shadow:0 0 28px rgba(0,210,255,.12); }
+    .player-loading-status { margin-top:4px; color:#00d2ff; font-size:11px; font-weight:850; letter-spacing:.2em; text-transform:uppercase; }
+    .player-loading-title { max-width:min(78%,720px); color:#f5f7fa; font-size:clamp(14px,1.8vw,21px); font-weight:700; line-height:1.35; text-wrap:balance; }
+    .player-loading-hint { color:rgba(217,228,239,.62); font-size:12px; letter-spacing:.025em; }
+    .player-loading-indicators { display:flex; gap:5px; height:13px; align-items:center; margin-top:1px; }
+    .player-loading-indicators span { width:4px; height:5px; border-radius:5px; background:#00d2ff; animation:wrbtv-loading-bars .9s ease-in-out infinite; }
+    .player-loading-indicators span:nth-child(2) { animation-delay:.12s; }
+    .player-loading-indicators span:nth-child(3) { animation-delay:.24s; }
+    @keyframes wrbtv-loading-spin { to { transform:rotate(360deg); } }
+    @keyframes wrbtv-loading-bars { 0%,100% { height:5px; opacity:.45; } 50% { height:13px; opacity:1; } }
+    @media (prefers-reduced-motion:reduce) { .player-loading-spinner,.player-loading-indicators span { animation:none; } }
+
+    /* Branded splash while an existing account reconnects at startup. */
+    #sessionRestoreSplash { display:none; position:fixed; inset:0; z-index:10000; align-items:center; justify-content:center; flex-direction:column; gap:15px; color:#f4f8fc; text-align:center; background:radial-gradient(ellipse at center,#0c1e2c 0%,#05090f 58%,#020306 100%); }
+    html.wrbtv-session-booting #sessionRestoreSplash { display:flex; }
+    html.wrbtv-session-booting #view-login { visibility:hidden !important; }
+    .session-restore-spinner { width:48px; height:48px; border-radius:50%; border:3px solid rgba(0,210,255,.16); border-top-color:#00d2ff; animation:wrbtv-loading-spin .82s linear infinite; }
+    .session-restore-brand { font-size:24px; font-weight:900; letter-spacing:.14em; }
+    .session-restore-caption { color:rgba(223,233,243,.67); font-size:13px; }
 
     /* CUSTOM CINEMA CONTROLS & FLOATING HEADER */
     .player-floating-header {
@@ -2444,14 +2478,820 @@
       overflow: hidden !important;
     }
 
-  </style>
+  
+    /* ==========================================================
+       WRB-TV ANDROID — ACABAMENTO PREMIUM / RESPONSIVO
+       Regras específicas para telas móveis em landscape.
+       ========================================================== */
+    @media (orientation: landscape) and (max-height: 700px) {
+      body { overflow: hidden !important; }
+
+      header {
+        height: 60px !important;
+        padding: 0 14px !important;
+        gap: 8px !important;
+      }
+      .brand {
+        gap: 8px !important;
+        flex: 0 0 auto !important;
+        min-width: 0 !important;
+      }
+      .brand-logo {
+        width: 34px !important;
+        height: 34px !important;
+        padding: 3px !important;
+      }
+      .brand-title {
+        display: block !important;
+        font-size: 16px !important;
+      }
+      .brand-badge {
+        display: inline-flex !important;
+        font-size: 8px !important;
+        padding: 2px 7px !important;
+      }
+
+      .nav-tabs {
+        flex: 1 1 auto !important;
+        width: auto !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        justify-content: center !important;
+        gap: 2px !important;
+        padding: 3px !important;
+        overflow: hidden !important;
+      }
+      .nav-tab {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        padding: 7px 8px !important;
+        border-radius: 7px !important;
+        font-size: 11px !important;
+        gap: 5px !important;
+        white-space: nowrap !important;
+        justify-content: center !important;
+      }
+      .header-actions {
+        flex: 0 0 auto !important;
+        gap: 6px !important;
+      }
+      .user-pill {
+        max-width: 125px !important;
+        padding: 5px 9px !important;
+        font-size: 10px !important;
+      }
+      .header-actions .btn-icon {
+        width: 34px !important;
+        height: 34px !important;
+      }
+
+      /* HOME: composição equilibrada para 16:9 */
+      .wrb-home {
+        inset: 60px 0 0 !important;
+        overflow: hidden !important;
+      }
+      .wrb-home-content {
+        width: 100% !important;
+        max-width: 980px !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        margin: 0 auto !important;
+        padding: 12px 20px 10px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+      }
+      .wrb-home-brand {
+        margin: 0 0 10px !important;
+      }
+      .wrb-home-brand img {
+        width: min(220px, 24vw) !important;
+        max-height: 68px !important;
+        filter: drop-shadow(0 8px 22px rgba(0,180,255,.14)) !important;
+      }
+      .wrb-home-expiry {
+        margin-top: 1px !important;
+        font-size: 9px !important;
+        letter-spacing: 2.4px !important;
+      }
+      .wrb-home-grid {
+        width: 100% !important;
+        max-width: 860px !important;
+        margin: 0 auto !important;
+        display: grid !important;
+        grid-template-columns: minmax(190px,1.12fr) minmax(155px,1fr) minmax(155px,1fr) !important;
+        grid-template-rows: repeat(2, minmax(78px, 1fr)) !important;
+        gap: 10px !important;
+      }
+      .wrb-home-grid [data-home-type="live"] {
+        grid-column: 1 !important;
+        grid-row: 1 / 3 !important;
+      }
+      .wrb-home-grid [data-home-type="movies"] {
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+      }
+      .wrb-home-grid [data-home-type="series"] {
+        grid-column: 3 !important;
+        grid-row: 1 !important;
+      }
+      .wrb-home-grid [data-home-type="favs"] {
+        grid-column: 3 !important;
+        grid-row: 2 !important;
+      }
+      .wrb-home-grid #homeExit {
+        grid-column: 2 !important;
+        grid-row: 2 !important;
+      }
+      .home-tile {
+        border-radius: 12px !important;
+        padding: 12px 15px !important;
+        background: linear-gradient(145deg,rgba(16,28,43,.96),rgba(7,12,20,.98)) !important;
+        box-shadow: 0 10px 24px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.035) !important;
+        backdrop-filter: blur(10px) !important;
+      }
+      .home-live {
+        background:
+          radial-gradient(circle at 50% 25%, rgba(0,210,255,.13), transparent 34%),
+          linear-gradient(145deg,rgba(0,210,255,.16),rgba(7,16,27,.98) 62%,rgba(220,20,50,.10)) !important;
+      }
+      .tile-icon {
+        font-size: 24px !important;
+        margin-bottom: 7px !important;
+      }
+      .home-tile strong {
+        font-size: 13px !important;
+        line-height: 1.1 !important;
+      }
+      .home-tile small {
+        margin-top: 4px !important;
+        font-size: 9px !important;
+      }
+      .wrb-home-footer {
+        margin-top: 9px !important;
+        font-size: 8px !important;
+        letter-spacing: 1.8px !important;
+      }
+
+      /* APP AO VIVO: canais + mini player */
+      #view-app, #view-app.active {
+        height: calc(100dvh - 60px) !important;
+      }
+      #view-app.active {
+        grid-template-columns: 185px minmax(0,1fr) !important;
+      }
+      #view-app .sidebar {
+        display: flex !important;
+      }
+      #view-app .sidebar-header { padding: 9px !important; }
+      #view-app .sidebar-search {
+        padding: 8px 9px !important;
+        font-size: 10px !important;
+      }
+      #view-app .categories-list { padding: 5px !important; }
+      #view-app .category-item {
+        padding: 8px 9px !important;
+        font-size: 10px !important;
+        margin-bottom: 1px !important;
+      }
+
+      #view-app .stage.live-layout {
+        display: grid !important;
+        grid-template-columns: minmax(0,1.18fr) minmax(235px,.82fr) !important;
+        grid-template-rows: 52px minmax(0,1fr) !important;
+        gap: 0 !important;
+        overflow: hidden !important;
+      }
+      #view-app .stage.live-layout .stage-topbar {
+        grid-column: 1 / -1 !important;
+        grid-row: 1 !important;
+        height: 52px !important;
+        min-height: 52px !important;
+        padding: 7px 12px !important;
+        gap: 8px !important;
+      }
+      #view-app .stage.live-layout .stage-title {
+        font-size: 15px !important;
+        gap: 7px !important;
+      }
+      #view-app .stage.live-layout .stage-count {
+        font-size: 10px !important;
+        padding: 2px 8px !important;
+      }
+      #view-app .stage.live-layout .content-search {
+        width: min(185px, 28vw) !important;
+        padding: 7px 10px !important;
+        font-size: 10px !important;
+      }
+      #view-app .stage.live-layout .content-grid-wrap {
+        grid-column: 1 !important;
+        grid-row: 2 !important;
+        padding: 8px 7px 10px 10px !important;
+        overflow-y: auto !important;
+      }
+      #view-app .stage.live-layout #contentGrid.live-grid {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 6px !important;
+      }
+      #view-app .stage.live-layout #contentGrid.live-grid .live-card {
+        min-height: 56px !important;
+        padding: 7px 9px !important;
+        gap: 9px !important;
+        border-radius: 9px !important;
+      }
+
+      #view-app .stage.live-layout .mini-player-panel {
+        display: none !important;
+        grid-column: 2 !important;
+        grid-row: 2 !important;
+        position: static !important;
+        align-self: stretch !important;
+        width: auto !important;
+        min-width: 0 !important;
+        margin: 8px 10px 8px 4px !important;
+        border-radius: 13px !important;
+        background: linear-gradient(180deg,#071019,#04070b) !important;
+        border: 1px solid rgba(255,255,255,.08) !important;
+        box-shadow: 0 12px 28px rgba(0,0,0,.30) !important;
+      }
+      #view-app .stage.live-layout .mini-player-panel.active {
+        display: block !important;
+      }
+      #view-app .stage.live-layout .mini-player-header {
+        height: 38px !important;
+        padding: 0 8px 0 10px !important;
+        background: linear-gradient(90deg,rgba(0,210,255,.12),rgba(255,255,255,.025)) !important;
+      }
+      #view-app .stage.live-layout .mini-player-title {
+        font-size: 10px !important;
+        gap: 6px !important;
+      }
+      #view-app .stage.live-layout .mini-expand-btn {
+        width: 28px !important;
+        height: 26px !important;
+        border-radius: 7px !important;
+      }
+      #view-app .stage.live-layout .mini-player-host,
+      #view-app .stage.live-layout .mini-player-host .player-container,
+      #view-app .stage.live-layout .mini-player-host .video-viewport {
+        width: 100% !important;
+        max-width: none !important;
+      }
+      #view-app .stage.live-layout .mini-player-host .video-viewport {
+        aspect-ratio: 16 / 9 !important;
+        max-height: none !important;
+      }
+      #view-app .stage.live-layout .mini-player-host .custom-player-controls {
+        padding: 16px 9px 7px !important;
+        gap: 5px !important;
+      }
+      #view-app .stage.live-layout .mini-player-host .player-progress-wrap {
+        height: 9px !important;
+      }
+      #view-app .stage.live-layout .mini-player-host .player-progress-bg {
+        height: 3px !important;
+      }
+      #view-app .stage.live-layout .mini-player-host .ctrl-btn {
+        min-width: 26px !important;
+        height: 26px !important;
+        font-size: 11px !important;
+      }
+
+      .home-tile:hover,.home-tile:focus,
+      .card-item:hover,.card-item:focus {
+        transform: none !important;
+      }
+    }
+
+    /* Celular vertical: somente antes da rotação ou em aparelhos que não
+       suportem landscape; mantém a interface legível. */
+    @media (orientation: portrait) and (max-width: 680px) {
+      .wrb-home-content {
+        padding: 22px 14px 18px !important;
+      }
+      .wrb-home-brand img {
+        width: min(230px, 62vw) !important;
+        max-height: 100px !important;
+      }
+      .wrb-home-grid {
+        grid-template-columns: 1fr 1fr !important;
+        grid-template-rows: repeat(3, minmax(82px,auto)) !important;
+        gap: 10px !important;
+      }
+      .wrb-home-grid [data-home-type="live"],
+      .wrb-home-grid [data-home-type="movies"],
+      .wrb-home-grid [data-home-type="series"],
+      .wrb-home-grid [data-home-type="favs"],
+      .wrb-home-grid #homeExit {
+        grid-column: auto !important;
+        grid-row: auto !important;
+      }
+      .home-tile { min-height: 82px !important; padding: 14px !important; }
+    }
+
+
+    /* ==========================================================
+       ANDROID LOGIN — MOBILE FIRST
+       O cabeçalho desktop não aparece durante o login.
+       A tela usa SafeArea nativa + rolagem própria para nunca cortar
+       abas ou campos em celulares altos.
+       ========================================================== */
+    body.login-mode > header {
+      display: none !important;
+    }
+
+    body.login-mode {
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      min-height: 100dvh !important;
+    }
+
+    body.login-mode #view-login {
+      width: 100% !important;
+      max-width: 560px !important;
+      min-height: 100dvh !important;
+      height: auto !important;
+      max-height: none !important;
+      margin: 0 auto !important;
+      padding: 28px 18px 32px !important;
+      justify-content: flex-start !important;
+      gap: 18px !important;
+      overflow: visible !important;
+    }
+
+    body.login-mode #view-login .login-hero {
+      width: 100% !important;
+      margin: 4px 0 0 !important;
+    }
+
+    body.login-mode #view-login .login-hero h1 {
+      font-size: clamp(27px, 7.5vw, 34px) !important;
+      line-height: 1.08 !important;
+      letter-spacing: -1px !important;
+      margin-bottom: 10px !important;
+    }
+
+    body.login-mode #view-login .login-hero p {
+      font-size: 14px !important;
+      line-height: 1.45 !important;
+      color: #7c8ea2 !important;
+      max-width: 470px !important;
+      margin: 0 auto !important;
+    }
+
+    body.login-mode #view-login .login-box {
+      width: 100% !important;
+      max-width: none !important;
+      padding: 17px !important;
+      border-radius: 16px !important;
+      background:
+        linear-gradient(180deg, rgba(14,22,33,.98), rgba(7,12,19,.98)) !important;
+      border: 1px solid rgba(255,255,255,.09) !important;
+      box-shadow:
+        0 18px 45px rgba(0,0,0,.42),
+        inset 0 1px 0 rgba(255,255,255,.025) !important;
+    }
+
+    body.login-mode #view-login .login-tabs {
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      gap: 5px !important;
+      margin-bottom: 16px !important;
+      padding: 4px !important;
+      border: 1px solid rgba(255,255,255,.06) !important;
+      border-radius: 10px !important;
+      background: rgba(0,0,0,.20) !important;
+    }
+
+    body.login-mode #view-login .login-tab {
+      width: 100% !important;
+      min-width: 0 !important;
+      min-height: 42px !important;
+      padding: 7px 5px !important;
+      border-radius: 8px !important;
+      border: 1px solid transparent !important;
+      font-size: 10px !important;
+      line-height: 1.15 !important;
+      font-weight: 700 !important;
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-align: center !important;
+    }
+
+    body.login-mode #view-login .login-tab.active {
+      background: linear-gradient(135deg, rgba(0,210,255,.24), rgba(0,130,180,.16)) !important;
+      border-color: rgba(0,210,255,.26) !important;
+      color: #00d2ff !important;
+      box-shadow: 0 4px 14px rgba(0,210,255,.10) !important;
+    }
+
+    body.login-mode #view-login .form-group {
+      margin-bottom: 14px !important;
+    }
+
+    body.login-mode #view-login .form-group label {
+      font-size: 10px !important;
+      margin-bottom: 6px !important;
+      letter-spacing: .7px !important;
+    }
+
+    body.login-mode #view-login .form-control {
+      width: 100% !important;
+      height: 48px !important;
+      padding: 0 13px !important;
+      border-radius: 10px !important;
+      font-size: 15px !important;
+      background: #05090f !important;
+      border-color: rgba(255,255,255,.08) !important;
+    }
+
+    body.login-mode #view-login .device-id-field {
+      height: 48px !important;
+      font-size: 16px !important;
+      letter-spacing: 1.5px !important;
+      color: #00d2ff !important;
+      background: rgba(0,210,255,.055) !important;
+      border-color: rgba(0,210,255,.10) !important;
+    }
+
+    body.login-mode #view-login .device-id-help {
+      font-size: 10px !important;
+      line-height: 1.35 !important;
+      margin-top: 6px !important;
+    }
+
+    body.login-mode #view-login .btn-primary {
+      min-height: 50px !important;
+      height: 50px !important;
+      margin-top: 4px !important;
+      border-radius: 10px !important;
+      font-size: 14px !important;
+      font-weight: 800 !important;
+      letter-spacing: .1px !important;
+      box-shadow: 0 10px 24px rgba(0,210,255,.16) !important;
+    }
+
+    body.login-mode #view-login .toast {
+      font-size: 11px !important;
+      margin-top: 10px !important;
+    }
+
+    @media (max-width: 420px) {
+      body.login-mode #view-login {
+        padding: 22px 12px 26px !important;
+        gap: 15px !important;
+      }
+
+      body.login-mode #view-login .login-hero h1 {
+        font-size: 27px !important;
+      }
+
+      body.login-mode #view-login .login-hero p {
+        font-size: 13px !important;
+      }
+
+      body.login-mode #view-login .login-box {
+        padding: 13px !important;
+      }
+
+      body.login-mode #view-login .login-tab {
+        min-height: 40px !important;
+        font-size: 9px !important;
+      }
+
+      body.login-mode #view-login .form-control,
+      body.login-mode #view-login .device-id-field {
+        height: 46px !important;
+      }
+
+      body.login-mode #view-login .btn-primary {
+        height: 48px !important;
+      }
+    }
+
+    @media (max-height: 720px) {
+      body.login-mode #view-login {
+        padding-top: 18px !important;
+        padding-bottom: 20px !important;
+        gap: 12px !important;
+      }
+
+      body.login-mode #view-login .login-hero {
+        margin-top: 0 !important;
+      }
+
+      body.login-mode #view-login .login-hero h1 {
+        font-size: 25px !important;
+        margin-bottom: 6px !important;
+      }
+
+      body.login-mode #view-login .login-hero p {
+        font-size: 12px !important;
+      }
+
+      body.login-mode #view-login .login-box {
+        padding: 12px !important;
+      }
+
+      body.login-mode #view-login .form-group {
+        margin-bottom: 10px !important;
+      }
+
+      body.login-mode #view-login .form-control,
+      body.login-mode #view-login .device-id-field {
+        height: 42px !important;
+      }
+
+      body.login-mode #view-login .btn-primary {
+        height: 44px !important;
+      }
+    }
+
+
+    /* WRB-TV ANDROID — AJUSTE FINAL DO CATÁLOGO E AO VIVO */
+    @media (orientation: landscape) and (max-height: 700px) {
+      /* Ao Vivo: canais com a mesma densidade visual da lista de categorias. */
+      #view-app .stage.live-layout #contentGrid.live-grid {
+        gap: 5px !important;
+      }
+
+      #view-app .stage.live-layout #contentGrid.live-grid .live-card {
+        min-height: 43px !important;
+        height: 43px !important;
+        padding: 5px 8px !important;
+        gap: 8px !important;
+        border-radius: 8px !important;
+        border-color: rgba(255,255,255,.055) !important;
+      }
+
+      #view-app .stage.live-layout #contentGrid.live-grid .live-logo-wrap {
+        width: 32px !important;
+        height: 32px !important;
+        padding: 3px !important;
+        border-radius: 7px !important;
+      }
+
+      #view-app .stage.live-layout #contentGrid.live-grid .live-name {
+        font-size: 11px !important;
+        font-weight: 650 !important;
+        line-height: 1.15 !important;
+      }
+
+      #view-app .stage.live-layout #contentGrid.live-grid .live-epg {
+        font-size: 8px !important;
+        margin-top: 1px !important;
+      }
+
+      #view-app .stage.live-layout #contentGrid.live-grid .live-play-btn {
+        width: 24px !important;
+        height: 24px !important;
+        font-size: 10px !important;
+      }
+
+      #view-app .stage.live-layout #contentGrid.live-grid .fav-btn {
+        width: 24px !important;
+        height: 24px !important;
+        top: 50% !important;
+        right: 7px !important;
+        transform: translateY(-50%) !important;
+        font-size: 12px !important;
+      }
+
+      /* MiniPlayer ligeiramente maior, sem esmagar a lista. */
+      #view-app .stage.live-layout {
+        grid-template-columns: minmax(0,1.06fr) minmax(275px,.94fr) !important;
+      }
+
+      #view-app .stage.live-layout .mini-player-panel {
+        margin: 8px 9px 8px 5px !important;
+      }
+
+      /* Filmes/Séries: capas um pouco menores e com mais respiro visual. */
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid {
+        grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)) !important;
+        gap: 11px !important;
+      }
+
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid .poster-body {
+        padding: 7px 9px !important;
+      }
+
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid .poster-title {
+        font-size: 11px !important;
+      }
+
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid .fav-btn {
+        width: 25px !important;
+        height: 25px !important;
+        top: 7px !important;
+        right: 7px !important;
+      }
+    }
+
+
+    /* WRB-TV ANDROID — REFINO FINAL DO CABEÇALHO E CATÁLOGO */
+    @media (orientation: landscape) and (max-height: 700px) {
+      /* Cabeçalho da categoria mais fino e discreto */
+      #view-app .stage:not(.live-layout) .stage-topbar {
+        height: 44px !important;
+        min-height: 44px !important;
+        padding: 5px 10px !important;
+        gap: 8px !important;
+        background: rgba(7,12,19,.72) !important;
+      }
+
+      #view-app .stage:not(.live-layout) .stage-title {
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        line-height: 1 !important;
+        gap: 7px !important;
+        white-space: nowrap !important;
+      }
+
+      #view-app .stage:not(.live-layout) .stage-count {
+        font-size: 9px !important;
+        padding: 2px 7px !important;
+      }
+
+      #view-app .stage:not(.live-layout) .content-search {
+        width: min(170px, 24vw) !important;
+        height: 32px !important;
+        padding: 6px 9px !important;
+        font-size: 10px !important;
+        border-radius: 8px !important;
+      }
+
+      /* Catálogo menor, mais arejado e profissional */
+      #view-app .stage:not(.live-layout) .content-grid-wrap {
+        padding: 10px 12px 12px !important;
+      }
+
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
+        gap: 10px !important;
+        align-items: start !important;
+      }
+
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid .card-item {
+        border-radius: 9px !important;
+      }
+
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid .poster-thumb {
+        aspect-ratio: 2 / 3 !important;
+      }
+
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid .poster-body {
+        padding: 6px 7px !important;
+      }
+
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid .poster-title {
+        font-size: 10px !important;
+        line-height: 1.15 !important;
+      }
+
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid .poster-overlay {
+        padding: 7px !important;
+      }
+
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid .poster-meta {
+        font-size: 9px !important;
+        gap: 4px !important;
+      }
+
+      #view-app .stage:not(.live-layout) #contentGrid.poster-grid .fav-btn {
+        width: 23px !important;
+        height: 23px !important;
+        top: 6px !important;
+        right: 6px !important;
+        font-size: 11px !important;
+      }
+    }
+
+    /* WRB-TV ANDROID: modal responsivo com espaço real para os episódios */
+    #series-modal {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      padding: clamp(8px, 2vw, 24px);
+      box-sizing: border-box;
+      overflow: hidden !important;
+      align-items: center;
+      justify-content: center;
+      touch-action: auto;
+    }
+    #series-modal .series-box {
+      display: flex !important;
+      flex: 0 1 auto;
+      flex-direction: column;
+      width: min(900px, 96vw);
+      height: min(84vh, 860px);
+      height: min(calc(100dvh - 24px), 860px);
+      max-height: calc(100vh - 16px);
+      max-height: calc(100dvh - 16px);
+      min-height: 0 !important;
+      box-sizing: border-box;
+      overflow: hidden !important;
+    }
+    #series-modal .series-hero {
+      flex: 0 1 auto !important;
+      min-height: 0 !important;
+      max-height: 42% !important;
+      padding: clamp(10px, 2vw, 20px) !important;
+      overflow: hidden !important;
+      box-sizing: border-box;
+    }
+    #series-modal .series-cover {
+      height: clamp(100px, 26vh, 210px) !important;
+      width: auto !important;
+      max-width: 24vw !important;
+      aspect-ratio: 2 / 3;
+      flex: 0 0 auto;
+      object-fit: cover;
+    }
+    #series-modal .series-details {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+    #series-modal .series-plot {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      overflow: hidden;
+    }
+    #series-modal .season-selector {
+      flex: 0 0 auto !important;
+      min-height: 54px;
+      max-height: 18%;
+      padding: 9px 14px !important;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      touch-action: pan-x;
+      -webkit-overflow-scrolling: touch;
+    }
+    #series-modal .season-pill {
+      flex: 0 0 auto;
+      min-height: 42px;
+    }
+    #series-modal .episodes-list {
+      display: flex !important;
+      flex: 1 1 0 !important;
+      flex-basis: 0 !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      overflow-y: scroll !important;
+      overflow-x: hidden !important;
+      padding: 12px 14px !important;
+      flex-direction: column;
+      gap: 8px;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
+      touch-action: pan-y;
+      scrollbar-width: thin;
+      visibility: visible !important;
+    }
+    #series-modal .episode-item {
+      display: flex !important;
+      flex: 0 0 auto !important;
+      min-height: 52px;
+      scroll-margin-block: 8px;
+      touch-action: manipulation;
+    }
+
+    /* Android TV / TV Box / Fire TV: visible focus for remote navigation. */
+    .wrbtv-tv-device button:focus,
+    .wrbtv-tv-device [tabindex="0"]:focus,
+    .wrbtv-tv-device input:focus,
+    .episode-item:focus,
+    .season-pill:focus,
+    .category-item:focus,
+    .card-item:focus,
+    .home-tile:focus {
+      outline: 3px solid var(--primary) !important;
+      outline-offset: 2px;
+      border-color: var(--primary) !important;
+      box-shadow: 0 0 0 2px rgba(0,210,255,.20), 0 0 22px rgba(0,210,255,.18) !important;
+    }
+    .episode-item { scroll-margin-block: 8px; }
+
+    </style>
 </head>
-<body>
+<body class="login-mode">
+  <div id="sessionRestoreSplash" aria-live="polite"><div class="session-restore-spinner" aria-hidden="true"></div><div class="session-restore-brand">WRB-TV</div><div class="session-restore-caption">Reconectando à sua conta...</div></div>
 
   <!-- HEADER -->
   <header>
     <div class="brand" id="brandBtn">
-      <img src="/logo.png" class="brand-logo" alt="Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%2300d2ff%22><path d=%22M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z%22/></svg>'">
+      <img src="https://raw.githubusercontent.com/wrbtv/wrb-tv-universal/main/public/logo.png" class="brand-logo" alt="Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%2300d2ff%22><path d=%22M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z%22/></svg>'">
       <div>
         <div class="brand-title">WRB-TV</div>
       </div>
@@ -2564,7 +3404,7 @@
     <div class="wrb-home-bg"></div>
     <div class="wrb-home-content">
       <div class="wrb-home-brand">
-        <img src="/logo.png" alt="WRB-TV">
+        <img src="https://raw.githubusercontent.com/wrbtv/wrb-tv-universal/main/public/logo.png" alt="WRB-TV">
         <div class="wrb-home-expiry">WRB-TV PLAYER PRO</div>
       </div>
       <div class="wrb-home-grid">
@@ -2643,6 +3483,15 @@
     <div class="player-container">
       <div class="video-viewport" id="videoViewport">
         <video id="mainVideo" playsinline></video>
+        <div id="playerLoadingOverlay" aria-hidden="true">
+          <div class="player-loading-brand"><span class="player-loading-brand-mark" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor"/></svg></span><span>WRB-TV</span></div>
+          <div class="player-loading-spinner" aria-hidden="true"></div>
+          <div class="player-loading-status">Preparando sua experiência</div>
+          <div id="playerLoadingTitle" class="player-loading-title">Carregando conteúdo</div>
+          <div id="playerLoadingHint" class="player-loading-hint">Conectando ao servidor de mídia...</div>
+          <div class="player-loading-indicators" aria-hidden="true"><span></span><span></span><span></span></div>
+        </div>
+
 
         <!-- TOP FLOATING BAR (CINEMA HEADER) -->
         <div class="player-floating-header visible" id="playerFloatingHeader">
@@ -3000,6 +3849,16 @@
       return normalized ? [normalized] : [];
     }
 
+    // Persist the IPTV session outside WebView localStorage (localhost port changes per launch).
+    function persistSessionToNative(session = state.session) {
+      if (!session?.server || !session?.user || !session?.pass) return;
+      const saved = { server: session.server, serverCode: session.serverCode || null, serverCandidates: session.serverCandidates || [], user: session.user, pass: session.pass };
+      try { if (window.AndroidSession) window.AndroidSession.postMessage(JSON.stringify({ action: 'save', session: saved })); } catch (err) { console.warn('[WRB-TV] Session storage bridge:', err); }
+    }
+    function clearNativeSession() {
+      try { if (window.AndroidSession) window.AndroidSession.postMessage(JSON.stringify({ action: 'clear' })); } catch (_) {}
+    }
+
     // API REQUEST HELPER
     async function apiCall(payload) {
       const request = { ...payload };
@@ -3029,6 +3888,7 @@
           serverCode: state.session.serverCode || null,
           serverCandidates: state.session.serverCandidates
         }));
+        persistSessionToNative(state.session);
       }
 
       return data;
@@ -3074,6 +3934,7 @@
             user,
             pass
           }));
+          persistSessionToNative(state.session);
 
           enterApp();
         } else if (state.mode === 'm3u') {
@@ -3102,6 +3963,7 @@
               user: parsed.user,
               pass: parsed.pass
             }));
+            persistSessionToNative(state.session);
             enterApp();
           } else {
             showToast('Baixando lista M3U (aguarde alguns segundos)...', 'info');
@@ -3184,14 +4046,60 @@
       enterApp();
     }
 
+    // Automatically reconnect to saved credentials when the Android app is reopened.
+    async function restoreSavedSession(sess) {
+      if (!sess?.server || !sess?.user || !sess?.pass) return false;
+      document.documentElement.classList.add('wrbtv-session-booting');
+      state.session = null;
+      $('inpServer').value = sess.serverCode || sess.server;
+      $('inpUser').value = sess.user;
+      $('inpPass').value = sess.pass;
+      const candidates = sess.serverCode
+        ? getServerCandidates(sess.serverCode)
+        : (Array.isArray(sess.serverCandidates) && sess.serverCandidates.length ? sess.serverCandidates.map(normalizeServerUrl).filter(Boolean) : getServerCandidates(sess.server));
+      try {
+        const res = await apiCall({ action: 'login', server: sess.serverCode || sess.server, serverCode: sess.serverCode || null, serverCandidates: candidates, user: sess.user, pass: sess.pass });
+        if (!res.auth) throw new Error(res.error || 'Não foi possível validar o acesso salvo.');
+        state.session = {
+          server: res.server || normalizeServerUrl(sess.server),
+          serverCode: res.serverCode || sess.serverCode || null,
+          serverCandidates: res.serverCandidates || candidates,
+          user: sess.user, pass: sess.pass, info: res.userInfo
+        };
+        state.categories = res.categories || { live: [], movies: [], series: [] };
+        localStorage.setItem('wrbtv_session', JSON.stringify({
+          server: state.session.server, serverCode: state.session.serverCode,
+          serverCandidates: state.session.serverCandidates, user: state.session.user, pass: state.session.pass
+        }));
+        persistSessionToNative(state.session);
+        enterApp();
+        return true;
+      } catch (err) {
+        state.session = null;
+        document.documentElement.classList.remove('wrbtv-session-booting');
+        document.body.classList.remove('app-mode');
+        document.body.classList.add('login-mode');
+        $('view-login').classList.remove('login-hidden');
+        showToast('Não foi possível reconectar agora. Suas credenciais continuam salvas. Verifique a conexão e tente conectar novamente.', 'error');
+        console.warn('[WRB-TV] Reconexão automática:', err.message || err);
+        return false;
+      }
+    }
+
     // ENTER APP INTERFACE
     function enterApp() {
+      document.documentElement.classList.remove('wrbtv-session-booting');
+      persistSessionToNative(state.session);
+      document.body.classList.remove('login-mode');
+      document.body.classList.add('app-mode');
       $('view-login').classList.add('login-hidden');
       $('view-app').classList.remove('active');
       $('mainNav').style.display = 'flex';
       $('userPill').style.display = 'flex';
       $('logoutBtn').style.display = 'flex';
       $('userNameDisplay').textContent = state.session?.user || 'Lista M3U';
+      try { window.AndroidOrientation?.postMessage('landscape'); } catch (_) {}
+      try { window.AndroidOrientation?.postMessage('immersive'); } catch (_) {}
 
       // Ao iniciar o aplicativo, mostrar SEMPRE a tela inicial.
       // O Ao Vivo só deve carregar categorias e iniciar reprodução
@@ -3204,12 +4112,19 @@
       updateHeaderNav('home');
       $('wrb-home').style.display = 'block';
       hideMiniPlayer();
+      startWrbBusinessHeartbeat();
     }
 
     // LOGOUT
     $('logoutBtn').onclick = () => {
+      stopWrbBusinessHeartbeat();
+      try { window.AndroidOrientation?.postMessage('portrait'); } catch (_) {}
+      try { window.AndroidOrientation?.postMessage('edge'); } catch (_) {}
+      document.body.classList.remove('app-mode');
+      document.body.classList.add('login-mode');
       localStorage.removeItem('wrbtv_session');
-      location.reload();
+      clearNativeSession();
+      setTimeout(() => location.reload(), 250);
     };
 
     // NAV TABS (LIVE, MOVIES, SERIES, FAVS)
@@ -3878,7 +4793,7 @@
             const progress = prog && !isWatched && prog.progressPercent > 5 ? prog.progressPercent : 0;
 
             return `
-              <div class="episode-item" data-url="${esc(ep.url)}" data-title="${esc(ep.title)}" data-id="${esc(ep.id)}" data-epnum="${esc(ep.episodeNum)}">
+              <div class="episode-item" tabindex="0" role="button" aria-label="Assistir episódio ${esc(ep.episodeNum)}: ${esc(displayTitle)}" data-url="${esc(ep.url)}" data-title="${esc(ep.title)}" data-id="${esc(ep.id)}" data-epnum="${esc(ep.episodeNum)}">
                 <div class="ep-left">
                   <span class="ep-num">EP ${esc(ep.episodeNum)}</span>
                   <span class="ep-title">${esc(displayTitle)}</span>
@@ -3889,6 +4804,14 @@
               </div>
             `;
           }).join('');
+
+          // Reset the independent episode scroller whenever a season is selected.
+          const episodeScroller = $('episodesList');
+          if (episodeScroller) {
+            episodeScroller.scrollTop = 0;
+            episodeScroller.style.display = 'flex';
+            episodeScroller.style.overflowY = 'scroll';
+          }
 
           document.querySelectorAll('.episode-item').forEach(el => {
             el.onclick = () => {
@@ -3923,6 +4846,17 @@
 
         // Open Season 1
         showSeasonEpisodes(seasons[0]);
+        // On TV/remote devices, focus the active season so Down reaches the episode list.
+        if (document.body.classList.contains('wrbtv-tv-device')) {
+          setTimeout(() => {
+            if (!$('series-modal')?.classList.contains('show')) return;
+            const activeSeason = $('seasonTabs')?.querySelector('.season-pill.active');
+            if (activeSeason) {
+              activeSeason.focus({ preventScroll: true });
+              activeSeason.scrollIntoView({ block: 'nearest' });
+            }
+          }, 0);
+        }
       } catch (err) {
         $('seriesModalPlot').textContent = `Falha ao carregar detalhes: ${err.message}`;
       }
@@ -4121,12 +5055,30 @@
         user: state.session.user,
         pass: state.session.pass
       }));
+      persistSessionToNative(state.session);
+    }
+
+    function showPlayerLoading(title, hint = 'Conectando ao servidor de mídia...') {
+      const layer = $('playerLoadingOverlay');
+      if (!layer) return;
+      if ($('playerLoadingTitle')) $('playerLoadingTitle').textContent = title || 'Carregando conteúdo';
+      if ($('playerLoadingHint')) $('playerLoadingHint').textContent = hint;
+      layer.classList.add('visible'); layer.setAttribute('aria-hidden', 'false');
+    }
+    function hidePlayerLoading() {
+      const layer = $('playerLoadingOverlay');
+      if (!layer) return;
+      layer.classList.remove('visible'); layer.setAttribute('aria-hidden', 'true');
     }
 
     // CINEMA VIDEO PLAYER ENGINE (COM RETOMADA E HISTÓRICO NETFLIX)
     function playVideo(title, url, fallbackTsUrl, meta = null) {
       const overlay = $('player-overlay');
       const v = $('mainVideo');
+      showPlayerLoading(title, 'Conectando e preparando o vídeo...');
+      v.onplaying = () => hidePlayerLoading();
+      v.onwaiting = () => { if (!v.paused) showPlayerLoading(title, 'Bufferizando conteúdo...'); };
+      v.onstalled = () => { if (!v.paused) showPlayerLoading(title, 'Restabelecendo o fluxo de vídeo...'); };
 
       // Detectar se o player de Ao Vivo já estava em fullscreen antes
       // de trocar de canal para não voltar ao mini player.
@@ -4170,6 +5122,10 @@
       // Garantir que os controles nativos do navegador NUNCA apareçam
       v.controls = false;
       v.pause();
+      // Movie/episode selection should start playback once its stream is ready.
+      // Android WebView is configured to allow this after async HLS setup.
+      v.autoplay = true;
+      v.setAttribute('autoplay', 'autoplay');
       v.removeAttribute('src');
       v.load();
 
@@ -4438,6 +5394,7 @@
       state.isClosingPlayer = true;
       const overlay = $('player-overlay');
       const v = $('mainVideo');
+      hidePlayerLoading();
       // Silenciar imediatamente, antes de qualquer operação de fullscreen assíncrona.
       try { v.pause(); } catch {}
       try {
@@ -4756,85 +5713,232 @@
       showControls();
     });
 
-    // KEYBOARD & D-PAD NAVIGATION FOR TV BOX & POWER USERS
+    // KEYBOARD & D-PAD NAVIGATION FOR TV BOX, FIRE TV AND SMART TV
+    function isVisibleForDpad(el) {
+      if (!el || !el.isConnected) return false;
+      const style = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' &&
+        rect.width > 0 && rect.height > 0;
+    }
+
+    function focusDpadNeighbor(scope, focused, key) {
+      if (!scope || !focused) return false;
+      const selector = 'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]';
+      const candidates = Array.from(scope.querySelectorAll(selector))
+        .filter(el => el !== focused && isVisibleForDpad(el));
+      const from = focused.getBoundingClientRect();
+      const fx = from.left + from.width / 2;
+      const fy = from.top + from.height / 2;
+      const direction = {
+        ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+        ArrowUp: [0, -1], ArrowDown: [0, 1]
+      }[key];
+      if (!direction) return false;
+      let best = null;
+      let bestScore = Infinity;
+      for (const candidate of candidates) {
+        const rect = candidate.getBoundingClientRect();
+        const dx = rect.left + rect.width / 2 - fx;
+        const dy = rect.top + rect.height / 2 - fy;
+        const primary = direction[0] ? dx * direction[0] : dy * direction[1];
+        const secondary = direction[0] ? Math.abs(dy) : Math.abs(dx);
+        if (primary <= 3) continue;
+        const score = primary + secondary * 1.7;
+        if (score < bestScore) { best = candidate; bestScore = score; }
+      }
+      if (!best) return false;
+      best.focus({ preventScroll: true });
+      best.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+      return true;
+    }
+
+    function getVisibleDpadStart() {
+      if ($('series-modal')?.classList.contains('show')) {
+        return $('seasonTabs')?.querySelector('.season-pill.active') ||
+          $('episodesList')?.querySelector('.episode-item');
+      }
+      if (isVisibleForDpad($('wrb-home'))) return document.querySelector('#wrb-home .home-tile');
+      return document.querySelector('#catList .category-item.active') ||
+        document.querySelector('#contentGrid .card-item') ||
+        document.querySelector('#view-login button:not(:disabled), #view-login input:not(:disabled)');
+    }
+
+    window.__wrbHandleSystemBack = () => {
+      if ($('player-overlay')?.classList.contains('show') ||
+          $('series-modal')?.classList.contains('show') || isAppNativeFullscreen()) {
+        window.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Escape', bubbles: true, cancelable: true
+        }));
+        return true;
+      }
+      return false;
+    };
+
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        // Dentro do player, ESC sempre sai primeiro do fullscreen do player.
-        // Nunca deve tirar o aplicativo do modo TV enquanto o player estiver aberto.
-        if (
-          document.body.classList.contains('electron-fullscreen') &&
-          $('player-overlay')?.classList.contains('show')
-        ) {
-          exitPlayerFullscreenToPrevious();
-          e.preventDefault();
-          e.stopPropagation();
-          return;
-        }
-
-        // Sem player aberto, ESC pode sair do fullscreen geral do aplicativo.
-        if (isAppNativeFullscreen()) {
-          setAppNativeFullscreen(false);
-          e.preventDefault();
-          e.stopPropagation();
-          return;
-        }
-
-        if ($('player-overlay')?.classList.contains('show')) {
-          closePlayer();
-          e.preventDefault();
-          e.stopPropagation();
-          return;
-        }
-        if ($('player-overlay').classList.contains('show')) closePlayer();
-        else if ($('series-modal').classList.contains('show')) $('series-modal').classList.remove('show');
+      // Detect a physical TV remote even on generic Android TV boxes that do not report Leanback.
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'NumpadEnter', 'BrowserBack', 'GoBack'].includes(e.key)) {
+        document.body.classList.add('wrbtv-tv-device');
+        document.documentElement.classList.add('wrbtv-tv-device');
       }
 
-      // Hotkeys inside player overlay
-      if ($('player-overlay').classList.contains('show')) {
+      if (e.key === 'Escape' || e.key === 'BrowserBack' || e.key === 'GoBack') {
+        if (document.body.classList.contains('electron-fullscreen') &&
+            $('player-overlay')?.classList.contains('show')) {
+          exitPlayerFullscreenToPrevious(); e.preventDefault(); e.stopPropagation(); return;
+        }
+        if (isAppNativeFullscreen()) {
+          setAppNativeFullscreen(false); e.preventDefault(); e.stopPropagation(); return;
+        }
+        if ($('player-overlay')?.classList.contains('show')) {
+          closePlayer(); e.preventDefault(); e.stopPropagation(); return;
+        }
+        if ($('series-modal')?.classList.contains('show')) {
+          $('series-modal').classList.remove('show');
+          e.preventDefault(); e.stopPropagation(); return;
+        }
+      }
+
+      // The active player owns the directional seek controls.
+      if ($('player-overlay')?.classList.contains('show')) {
         const v = $('mainVideo');
         if (e.key === ' ' || e.key === 'k') {
-          if (v.paused) v.play().catch(() => {});
-          else v.pause();
+          if (v.paused) v.play().catch(() => {}); else v.pause();
           e.preventDefault();
         } else if (e.key === 'ArrowRight') {
           v.currentTime = Math.min(v.duration || Infinity, v.currentTime + 10);
-          showControls();
-          e.preventDefault();
+          showControls(); e.preventDefault();
         } else if (e.key === 'ArrowLeft') {
           v.currentTime = Math.max(0, v.currentTime - 10);
-          showControls();
-          e.preventDefault();
+          showControls(); e.preventDefault();
         } else if (e.key === 'f') {
-          $('ctrlFullscreen').click();
-          e.preventDefault();
+          $('ctrlFullscreen').click(); e.preventDefault();
         } else if (e.key === 'm') {
-          $('ctrlMute').click();
-          e.preventDefault();
+          $('ctrlMute').click(); e.preventDefault();
         } else if (e.key === 'n' || e.key === 'N') {
-          playNextEpisode(state.currentPlayingMeta);
-          e.preventDefault();
+          playNextEpisode(state.currentPlayingMeta); e.preventDefault();
         }
+        return;
       }
 
-      // Navigate cards with arrows when focused
       const focused = document.activeElement;
-      if (focused && focused.classList.contains('card-item')) {
-        const cards = Array.from(document.querySelectorAll('.card-item'));
-        const idx = cards.indexOf(focused);
-        if (idx >= 0) {
-          if (e.key === 'ArrowRight' && idx + 1 < cards.length) {
-            cards[idx + 1].focus();
-            e.preventDefault();
-          } else if (e.key === 'ArrowLeft' && idx - 1 >= 0) {
-            cards[idx - 1].focus();
-            e.preventDefault();
-          } else if (e.key === 'Enter') {
-            focused.click();
-            e.preventDefault();
+      const dpadKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+      const isDpad = dpadKeys.includes(e.key);
+      if (focused &&
+          (focused.classList?.contains('episode-item') || focused.classList?.contains('card-item')) &&
+          (e.key === 'Enter' || e.key === 'NumpadEnter' || e.key === ' ')) {
+        focused.click(); e.preventDefault(); return;
+      }
+
+      if ((!focused || focused === document.body || focused === document.documentElement) &&
+          document.body.classList.contains('wrbtv-tv-device')) {
+        const start = getVisibleDpadStart();
+        if (start && isVisibleForDpad(start)) {
+          start.focus({ preventScroll: true });
+          start.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+          e.preventDefault(); return;
+        }
+      }
+      if (!isDpad || !focused) return;
+
+      if (focused.classList?.contains('category-item') && e.key === 'ArrowRight') {
+        const firstCard = $('contentGrid')?.querySelector('.card-item');
+        if (firstCard) {
+          firstCard.focus({ preventScroll: true });
+          firstCard.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+          e.preventDefault(); return;
+        }
+      }
+      if (focused.classList?.contains('card-item') && e.key === 'ArrowLeft') {
+        const cards = Array.from($('contentGrid')?.querySelectorAll('.card-item') || []);
+        const rect = focused.getBoundingClientRect();
+        const hasCardLeft = cards.some(card => {
+          if (card === focused || !isVisibleForDpad(card)) return false;
+          const other = card.getBoundingClientRect();
+          return other.left + other.width / 2 < rect.left + rect.width / 2 - 3 &&
+            Math.abs((other.top + other.height / 2) - (rect.top + rect.height / 2)) < rect.height;
+        });
+        if (!hasCardLeft) {
+          const activeCategory = document.querySelector('#catList .category-item.active');
+          if (activeCategory && isVisibleForDpad(activeCategory)) {
+            activeCategory.focus({ preventScroll: true });
+            activeCategory.scrollIntoView({ block: 'nearest' });
+            e.preventDefault(); return;
           }
         }
       }
+
+      let scope = null;
+      if (focused.closest?.('#series-modal .series-box')) scope = document.querySelector('#series-modal .series-box');
+      else if (focused.closest?.('.wrb-home-grid')) scope = focused.closest('.wrb-home-grid');
+      else if (focused.closest?.('.categories-list')) scope = focused.closest('.categories-list');
+      else if (focused.closest?.('.content-grid-wrap')) scope = $('contentGrid') || focused.closest('.content-grid-wrap');
+      else if (focused.closest?.('#view-login')) scope = $('view-login');
+      if (scope && focusDpadNeighbor(scope, focused, e.key)) e.preventDefault();
     });
+
+    let wrbBusinessDeviceId = null;
+    let wrbBusinessHeartbeatTimer = null;
+    const WRB_BUSINESS_API = 'https://wrb-tv-business.netlify.app/api/v1/device';
+
+    async function getWrbBusinessDeviceId() {
+      if (wrbBusinessDeviceId) return wrbBusinessDeviceId;
+      try {
+        if (window.wrbDesktop && typeof window.wrbDesktop.getDeviceId === 'function') {
+          wrbBusinessDeviceId = await window.wrbDesktop.getDeviceId();
+        }
+      } catch (_) {}
+      if (!wrbBusinessDeviceId) {
+        wrbBusinessDeviceId = localStorage.getItem('wrbtv_device_id') || null;
+      }
+      return wrbBusinessDeviceId;
+    }
+
+    async function wrbBusinessHeartbeat() {
+      try {
+        const deviceId = await getWrbBusinessDeviceId();
+        if (!deviceId) return;
+        const payload = JSON.stringify({
+          device_id: deviceId,
+          app_id: 'WRB-TV Android',
+          platform: 'Android',
+          version: '2.0.0',
+          username: state.session?.user || ''
+        });
+
+        // sendBeacon evita preflight CORS e funciona mesmo antes do login.
+        try {
+          if (navigator.sendBeacon) {
+            const blob = new Blob([payload], { type: 'text/plain;charset=UTF-8' });
+            navigator.sendBeacon(WRB_BUSINESS_API + '/heartbeat', blob);
+          }
+        } catch (_) {}
+
+        // Fallback/confirmacao para ambientes sem sendBeacon.
+        try {
+          await fetch(WRB_BUSINESS_API + '/heartbeat', {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: payload,
+            keepalive: true
+          });
+        } catch (_) {}
+      } catch (_) {}
+    }
+
+    function startWrbBusinessHeartbeat() {
+      if (wrbBusinessHeartbeatTimer) clearInterval(wrbBusinessHeartbeatTimer);
+      wrbBusinessHeartbeatTimer = setInterval(wrbBusinessHeartbeat, 30000);
+      wrbBusinessHeartbeat();
+    }
+
+    function stopWrbBusinessHeartbeat() {
+      if (wrbBusinessHeartbeatTimer) {
+        clearInterval(wrbBusinessHeartbeatTimer);
+        wrbBusinessHeartbeatTimer = null;
+      }
+    }
 
     async function loadDeviceId() {
       const field = $('deviceIdDisplay');
@@ -4877,31 +5981,38 @@
       };
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       syncAppNativeFullscreen();
-      loadDeviceId();
-      const saved = localStorage.getItem('wrbtv_session');
+      await loadDeviceId();
+      wrbBusinessHeartbeat();
+      const nativeSaved = window.__WRB_NATIVE_SAVED_SESSION;
+      const saved = nativeSaved ? JSON.stringify(nativeSaved) : localStorage.getItem('wrbtv_session');
       if (saved) {
         try {
           const sess = JSON.parse(saved);
           if (sess.server && sess.user && sess.pass) {
-            $('inpServer').value = sess.serverCode || sess.server;
-            $('inpUser').value = sess.user;
-            $('inpPass').value = sess.pass;
-            state.session = {
-              server: normalizeServerUrl(sess.server),
-              serverCode: sess.serverCode || null,
-              serverCandidates: Array.isArray(sess.serverCandidates) && sess.serverCandidates.length
-                ? sess.serverCandidates.map(normalizeServerUrl).filter(Boolean)
-                : getServerCandidates(sess.serverCode || sess.server),
-              user: sess.user,
-              pass: sess.pass,
-              info: null
-            };
-          }
-        } catch (_) {}
-      }
+            persistSessionToNative(sess);
+            await restoreSavedSession(sess);
+          } else document.documentElement.classList.remove('wrbtv-session-booting');
+        } catch (err) {
+          document.documentElement.classList.remove('wrbtv-session-booting');
+          console.warn('[WRB-TV] Não foi possível restaurar a sessão:', err);
+        }
+      } else document.documentElement.classList.remove('wrbtv-session-booting');
     });
   </script>
+
+  <script>
+    // iPhone PWA: cache only the app shell, never credentials, API requests or streams.
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((err) => {
+          console.warn('[WRB-TV iPhone] Service worker indisponível:', err);
+        });
+      });
+    }
+  </script>
+
 </body>
 </html>
+

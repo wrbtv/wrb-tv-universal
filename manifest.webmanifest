@@ -1,0 +1,28 @@
+{
+  "name": "WRB-TV",
+  "short_name": "WRB-TV",
+  "description": "WRB-TV — TV ao vivo, filmes e séries no iPhone.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#06090e",
+  "theme_color": "#06090e",
+  "categories": [
+    "entertainment",
+    "video"
+  ],
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

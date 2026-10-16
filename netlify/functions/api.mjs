@@ -1,4 +1,103 @@
+async function proxyStreamRequest(req, rawTarget) {
+  try {
+    const requestUrl = new URL(req.url);
+    const targetUrl = new URL(rawTarget);
+    if (!["http:", "https:"].includes(targetUrl.protocol) || !targetUrl.hostname) {
+      return new Response("URL de mídia inválida.", { status: 400 });
+    }
+    if (targetUrl.origin === requestUrl.origin && targetUrl.pathname.startsWith("/api/stream")) {
+      return new Response("Destino de proxy inválido.", { status: 400 });
+    }
+
+    const requestHeaders = new Headers({
+      "user-agent": "VLC/3.0.18 LibVLC/3.0.18",
+      "accept": "*/*"
+    });
+    const range = req.headers.get("range");
+    if (range) requestHeaders.set("range", range);
+    const ifRange = req.headers.get("if-range");
+    if (ifRange) requestHeaders.set("if-range", ifRange);
+
+    const upstream = await fetch(targetUrl.toString(), {
+      method: req.method === "HEAD" ? "HEAD" : "GET",
+      headers: requestHeaders,
+      redirect: "follow"
+    });
+
+    const contentType = (upstream.headers.get("content-type") || "").toLowerCase();
+    const isPlaylistUrl = /\.(m3u8?|m3u)(?:$|[?#])/i.test(targetUrl.toString());
+    const isPlaylistType = contentType.includes("mpegurl") || contentType.includes("vnd.apple");
+    const headers = new Headers({
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, HEAD, OPTIONS",
+      "access-control-allow-headers": "Range, If-Range",
+      "access-control-expose-headers": "Accept-Ranges, Content-Range, Content-Length",
+      "cache-control": "no-store"
+    });
+    for (const name of ["content-type", "accept-ranges", "content-range", "last-modified", "etag"]) {
+      const value = upstream.headers.get(name);
+      if (value) headers.set(name, value);
+    }
+
+    if (req.method !== "HEAD" && (isPlaylistUrl || isPlaylistType)) {
+      const playlistBody = await upstream.text();
+      if (playlistBody.trimStart().startsWith("#EXTM3U")) {
+        const resolvedBase = upstream.url || targetUrl.toString();
+        const wrapReference = (reference) => {
+          try {
+            const absolute = new URL(reference, resolvedBase);
+            if (!["http:", "https:"].includes(absolute.protocol)) return reference;
+            const proxied = new URL("/api/stream", requestUrl.origin);
+            proxied.searchParams.set("url", absolute.toString());
+            return proxied.toString();
+          } catch (_) {
+            return reference;
+          }
+        };
+        const rewritten = playlistBody.split(/\r?\n/).map((line) => {
+          const trimmed = line.trim();
+          if (!trimmed) return line;
+          if (trimmed.startsWith("#")) {
+            return line.replace(/URI="([^"]+)"/g, (_, uri) => 'URI="' + wrapReference(uri) + '"');
+          }
+          const leading = line.match(/^\s*/)?.[0] || "";
+          const trailing = line.match(/\s*$/)?.[0] || "";
+          return leading + wrapReference(trimmed) + trailing;
+        }).join("\n");
+        headers.set("content-type", "application/vnd.apple.mpegurl; charset=utf-8");
+        return new Response(rewritten, { status: upstream.status, headers });
+      }
+      headers.set("content-type", contentType || "application/octet-stream");
+      return new Response(playlistBody, { status: upstream.status, headers });
+    }
+
+    return new Response(req.method === "HEAD" ? null : upstream.body, {
+      status: upstream.status,
+      headers
+    });
+  } catch (error) {
+    return new Response("Falha ao buscar o fluxo de mídia: " + (error?.message || "erro"), {
+      status: 502,
+      headers: { "access-control-allow-origin": "*", "cache-control": "no-store" }
+    });
+  }
+}
+
 export default async (req) => {
+  const requestUrl = new URL(req.url);
+  if ((req.method === "GET" || req.method === "HEAD") && requestUrl.searchParams.has("url")) {
+    return proxyStreamRequest(req, requestUrl.searchParams.get("url"));
+  }
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET, HEAD, POST, OPTIONS",
+        "access-control-allow-headers": "Content-Type, Range, If-Range"
+      }
+    });
+  }
   if (req.method !== "POST") {
     return Response.json({ error: "Método não permitido." }, { status: 405 });
   }
@@ -17,12 +116,36 @@ export default async (req) => {
   };
 
   try {
-    const server = String(b.server || "").replace(/\/+$/, "");
+    const serverPools = {
+      "0022": ["http://rekgol.top", "http://aptxu.com"],
+      "PFAST": ["http://wrb-tv.top", "http://p1fast.com"]
+    };
+    const rawServer = String(b.server || b.serverCode || "").trim();
+    const serverCode = String(b.serverCode || rawServer).trim().toUpperCase();
+    const normalizeServer = (value) => {
+      let normalized = String(value || "").trim();
+      if (!normalized) return "";
+      if (!/^https?:\/\//i.test(normalized)) normalized = "http://" + normalized;
+      return normalized.replace(/\/+$/, "");
+    };
+    const serverCandidates = [];
+    const addServer = (value) => {
+      const normalized = normalizeServer(value);
+      if (/^https?:\/\//i.test(normalized) && !serverCandidates.includes(normalized)) {
+        serverCandidates.push(normalized);
+      }
+    };
+    if (serverPools[serverCode]) serverPools[serverCode].forEach(addServer);
+    if (!serverPools[rawServer.toUpperCase()]) addServer(rawServer);
+    if (Array.isArray(b.serverCandidates)) b.serverCandidates.forEach(addServer);
+    let server = serverCandidates[0] || "";
     const u = String(b.user || "");
     const p = String(b.pass || "");
-    const base = `${server}/player_api.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`;
+    const makeBase = (host) => `${host}/player_api.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`;
+    let base = server ? makeBase(server) : "";
 
     async function fetchXtream(query) {
+      if (!base) return [];
       const url = `${base}&${query}`;
       const r = await fetch(url, {
         redirect: "follow",
@@ -41,25 +164,45 @@ export default async (req) => {
 
     // 1. LOGIN & INICIALIZAÇÃO RÁPIDA (Retorna categorias instantaneamente)
     if (b.action === "login") {
-      if (!/^https?:\/\//i.test(server) || !u || !p) {
+      if (!serverCandidates.length || !u || !p) {
         return Response.json({ error: "Servidor, usuário e senha são obrigatórios." }, { status: 400 });
       }
 
-      const authR = await fetch(base, {
-        redirect: "follow",
-        headers: { "user-agent": "IPTVSmartersPro/1.0.0", "accept": "application/json" }
-      });
-
-      if (!authR.ok) {
-        return Response.json({ error: `Servidor respondeu HTTP ${authR.status} ao validar o acesso.` }, { status: 502 });
+      let authenticatedUser = null;
+      let lastAuthError = "";
+      let lastNetworkError = "";
+      let hadReachableServer = false;
+      for (const candidate of serverCandidates) {
+        server = candidate;
+        base = makeBase(server);
+        try {
+          const authR = await fetch(base, {
+            redirect: "follow",
+            headers: { "user-agent": "IPTVSmartersPro/1.0.0", "accept": "application/json" }
+          });
+          if (!authR.ok) {
+            lastNetworkError = `Servidor respondeu HTTP ${authR.status} ao validar o acesso.`;
+            continue;
+          }
+          hadReachableServer = true;
+          const candidateAuth = await authR.json();
+          if (Number(candidateAuth?.user_info?.auth) === 1) {
+            authenticatedUser = candidateAuth;
+            break;
+          }
+          lastAuthError = candidateAuth?.user_info?.message || "Usuário ou senha inválidos.";
+        } catch (error) {
+          lastNetworkError = error?.message || "Falha de conexão com o servidor.";
+        }
       }
 
-      const auth = await authR.json();
-      if (Number(auth?.user_info?.auth) !== 1) {
-        return Response.json({ auth: false, error: auth?.user_info?.message || "Usuário ou senha inválidos." }, { status: 401 });
+      if (!authenticatedUser) {
+        if (hadReachableServer) {
+          return Response.json({ auth: false, error: lastAuthError || "Usuário ou senha inválidos." }, { status: 401, headers: jsonHeaders });
+        }
+        return Response.json({ error: lastNetworkError || "Não foi possível acessar os servidores informados." }, { status: 502, headers: jsonHeaders });
       }
 
-      // Baixa apenas as categorias de cada tipo em paralelo (Super Rápido!)
       const [liveCats, vodCats, seriesCats] = await Promise.all([
         fetchXtream("action=get_live_categories"),
         fetchXtream("action=get_vod_categories"),
@@ -68,8 +211,11 @@ export default async (req) => {
 
       return Response.json({
         auth: true,
-        userInfo: auth.user_info,
-        serverInfo: auth.server_info,
+        server,
+        serverCode: serverPools[serverCode] ? serverCode : null,
+        serverCandidates,
+        userInfo: authenticatedUser.user_info,
+        serverInfo: authenticatedUser.server_info,
         categories: {
           live: Array.isArray(liveCats) ? liveCats : [],
           movies: Array.isArray(vodCats) ? vodCats : [],

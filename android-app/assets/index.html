@@ -5004,6 +5004,10 @@
       // Garantir que os controles nativos do navegador NUNCA apareçam
       v.controls = false;
       v.pause();
+      // Movie/episode selection should start playback once its stream is ready.
+      // Android WebView is configured to allow this after async HLS setup.
+      v.autoplay = true;
+      v.setAttribute('autoplay', 'autoplay');
       v.removeAttribute('src');
       v.load();
 

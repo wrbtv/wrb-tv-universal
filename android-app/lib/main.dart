@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import 'services/local_server.dart';
 
@@ -80,8 +81,9 @@ class _WRBTVAppState extends State<WRBTVApp> {
           onNavigationRequest: (_) => NavigationDecision.navigate,
           onPageFinished: (_) { _applyDeviceProfile(); },
         ),
-      )
-      ..loadRequest(Uri.parse(widget.initialUrl));
+      );
+
+    unawaited(_configureMediaPlaybackAndLoad());
 
     if (Platform.isAndroid) {
       // Check after startup and repeat every six hours while the app is running.
@@ -91,6 +93,17 @@ class _WRBTVAppState extends State<WRBTVApp> {
         (_) => _checkForUpdates(),
       );
     }
+  }
+
+  Future<void> _configureMediaPlaybackAndLoad() async {
+    // The embedded IPTV player uses HLS/MPEG-TS, whose playback request often
+    // happens after asynchronous manifest loading. Android WebView otherwise
+    // blocks that request behind a second Play tap.
+    if (Platform.isAndroid && _controller.platform is AndroidWebViewController) {
+      await (_controller.platform as AndroidWebViewController)
+          .setMediaPlaybackRequiresUserGesture(false);
+    }
+    await _controller.loadRequest(Uri.parse(widget.initialUrl));
   }
 
   Future<void> _applyDeviceProfile() async {

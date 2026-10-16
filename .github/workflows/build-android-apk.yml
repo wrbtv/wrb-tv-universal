@@ -1,0 +1,120 @@
+name: Build and Publish WRB-TV Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android-app/**"
+      - ".github/workflows/build-android-apk.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "17 8 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  keep-signing-key-active:
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh persistent signing-key cache
+        id: signing-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: wrbtv-android-signing-certificate-v1
+      - name: Verify signing-key cache exists
+        if: steps.signing-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "::error::Persistent Android signing key is missing; refusing to replace it automatically."
+          exit 1
+
+  build-android:
+    if: ${{ github.event_name != 'schedule' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Restore persistent Android signing certificate
+        id: signing-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: wrbtv-android-signing-certificate-v1
+
+      - name: Refuse incompatible builds if signing key was lost
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.signing-cache.outputs.cache-hit }}" != "true" ] && gh release view android-stable --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::The existing signing certificate was not restored. Refusing to publish an APK that might not update installed clients."
+            exit 1
+          fi
+
+      - name: Flutter pub get
+        working-directory: android-app
+        run: flutter pub get
+
+      - name: Analyze Flutter code
+        working-directory: android-app
+        run: flutter analyze lib --no-fatal-infos
+
+      - name: Build release APK
+        working-directory: android-app
+        run: flutter build apk --release
+
+      - name: Prepare APK
+        run: cp android-app/build/app/outputs/flutter-apk/app-release.apk WRB-PLAY-ANDROID.apk
+
+      - name: Publish versioned release and refresh public Downloader URL
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(grep '^version:' android-app/pubspec.yaml | awk '{print $2}' | cut -d+ -f1)"
+          TAG="android-v${VERSION}-${GITHUB_RUN_NUMBER}"
+          NOTES="WRB-TV Android ${VERSION}, build ${GITHUB_RUN_NUMBER}. Android phone, tablet, Android TV, TV Box and compatible Fire TV build."
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" WRB-PLAY-ANDROID.apk --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh api "repos/$GITHUB_REPOSITORY/releases" --method POST \
+              -F "tag_name=$TAG" -F "target_commitish=$GITHUB_SHA" \
+              -F "name=WRB-TV Android $VERSION (Build $GITHUB_RUN_NUMBER)" \
+              -F "body=$NOTES" -F "draft=false" -F "prerelease=false" -F "make_latest=false" >/dev/null
+            gh release upload "$TAG" WRB-PLAY-ANDROID.apk --repo "$GITHUB_REPOSITORY"
+          fi
+
+          if ! gh release view android-stable --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh api "repos/$GITHUB_REPOSITORY/releases" --method POST \
+              -F "tag_name=android-stable" -F "target_commitish=$GITHUB_SHA" \
+              -F "name=WRB-TV Android Stable Download" \
+              -F "body=WRB-TV Android stable Downloader package. Version: $VERSION" \
+              -F "draft=false" -F "prerelease=false" -F "make_latest=false" >/dev/null
+          fi
+
+          gh release upload android-stable WRB-PLAY-ANDROID.apk --repo "$GITHUB_REPOSITORY" --clobber
+          STABLE_NOTES="WRB-TV Android public stable APK for Downloader.\nVersion: $VERSION\nBuild tag: $TAG\nUpdated automatically by GitHub Actions."
+          gh release edit android-stable --repo "$GITHUB_REPOSITORY" \
+            --title "WRB-TV Android Stable Download" --notes "$STABLE_NOTES"
+
+      - name: Validate the public stable link
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view android-stable --repo "$GITHUB_REPOSITORY" --json tagName,assets,body \
+            --jq '.tagName == "android-stable" and ([.assets[].name] | index("WRB-PLAY-ANDROID.apk") != null) and (.body | test("Version: [0-9]+\\.[0-9]+\\.[0-9]+"))' \
+            | grep -qx true

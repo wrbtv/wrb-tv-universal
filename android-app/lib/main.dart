@@ -51,6 +51,12 @@ class _WRBTVAppState extends State<WRBTVApp> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
       ..addJavaScriptChannel(
+        'AndroidSession',
+        onMessageReceived: (message) {
+          unawaited(_handleSessionBridgeMessage(message.message));
+        },
+      )
+      ..addJavaScriptChannel(
         'AndroidOrientation',
         onMessageReceived: (message) async {
           switch (message.message.toLowerCase().trim()) {
@@ -252,6 +258,37 @@ class _WRBTVAppState extends State<WRBTVApp> {
       // Let the OS handle Back while the WebView is not ready.
     }
     return true;
+  }
+
+  Future<void> _handleSessionBridgeMessage(String rawMessage) async {
+    try {
+      final decoded = jsonDecode(rawMessage);
+      if (decoded is! Map<String, dynamic>) return;
+      final action = decoded['action']?.toString();
+      final preferences = await SharedPreferences.getInstance();
+      if (action == 'save') {
+        final session = decoded['session'];
+        if (session is! Map) return;
+        final server = session['server']?.toString() ?? '';
+        final user = session['user']?.toString() ?? '';
+        final pass = session['pass']?.toString() ?? '';
+        if (server.isEmpty || user.isEmpty || pass.isEmpty) return;
+        await preferences.setString('wrbtv_saved_login', jsonEncode({
+          'server': server,
+          'serverCode': session['serverCode'],
+          'serverCandidates': session['serverCandidates'] is List
+              ? session['serverCandidates']
+              : <String>[],
+          'user': user,
+          'pass': pass,
+        }));
+      } else if (action == 'clear') {
+        await preferences.remove('wrbtv_saved_login');
+        widget.server.clearSessionBootstrap();
+      }
+    } catch (error) {
+      debugPrint('[WRB-TV] Session storage bridge error: $error');
+    }
   }
 
   @override

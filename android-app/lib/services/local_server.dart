@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalServerService {
   HttpServer? _server;
@@ -12,12 +13,42 @@ class LocalServerService {
     'PFAST': ['http://wrb-tv.top', 'http://p1fast.com'],
   };
 
+  static const _sessionBootstrapStart = '<!-- WRB-TV-NATIVE-SESSION-BOOTSTRAP-START -->';
+  static const _sessionBootstrapEnd = '<!-- WRB-TV-NATIVE-SESSION-BOOTSTRAP-END -->';
+
   Future<String> start() async {
     if (_server != null) return 'http://127.0.0.1:' + _server!.port.toString();
     _html ??= await rootBundle.loadString('assets/index.html');
+    final preferences = await SharedPreferences.getInstance();
+    final savedLogin = preferences.getString('wrbtv_saved_login');
+    if (savedLogin != null && !_html!.contains(_sessionBootstrapStart)) {
+      try {
+        final saved = jsonDecode(savedLogin);
+        if (saved is Map && saved['server'] != null && saved['user'] != null && saved['pass'] != null) {
+          // Escape angle brackets so a stored credential cannot terminate the injected script.
+          final safeJson = jsonEncode(saved).replaceAll('<', r'\u003C');
+          final bootstrap = '$_sessionBootstrapStart<script>'
+              'window.__WRB_NATIVE_SAVED_SESSION = $safeJson;'
+              'document.documentElement.classList.add("wrbtv-session-booting");'
+              '</script>$_sessionBootstrapEnd';
+          _html = _html!.replaceFirst('<head>', '<head>\n$bootstrap');
+        }
+      } catch (_) {
+        // Ignore corrupt storage and show the regular login screen.
+      }
+    }
     _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     _server!.listen(_handle);
     return 'http://127.0.0.1:' + _server!.port.toString();
+  }
+
+  void clearSessionBootstrap() {
+    if (_html == null) return;
+    final start = _html!.indexOf(_sessionBootstrapStart);
+    if (start < 0) return;
+    final end = _html!.indexOf(_sessionBootstrapEnd, start);
+    if (end < 0) return;
+    _html = _html!.replaceRange(start, end + _sessionBootstrapEnd.length, '');
   }
 
   Future<void> stop() async {

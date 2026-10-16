@@ -828,6 +828,31 @@
       object-fit: contain;
     }
 
+    /* WRB-TV premium loading layer. Hidden when playback starts. */
+    #playerLoadingOverlay { position:absolute; inset:0; z-index:24; display:none; flex-direction:column; align-items:center; justify-content:center; gap:13px; padding:24px; box-sizing:border-box; text-align:center; background:radial-gradient(ellipse at 50% 42%,rgba(0,210,255,.11) 0%,rgba(8,17,29,.92) 36%,rgba(0,0,0,.985) 100%); backdrop-filter:blur(14px); pointer-events:none; }
+    #playerLoadingOverlay.visible { display:flex; }
+    .player-loading-brand { display:flex; align-items:center; gap:9px; margin-bottom:3px; color:#f3f8fc; font-weight:850; font-size:clamp(18px,2.2vw,27px); letter-spacing:.12em; text-shadow:0 0 24px rgba(0,210,255,.16); }
+    .player-loading-brand-mark { width:34px; height:34px; display:grid; place-items:center; border-radius:10px; color:#041018; background:linear-gradient(145deg,#31e3ff,#00a9e0); box-shadow:0 0 26px rgba(0,210,255,.24); }
+    .player-loading-spinner { width:43px; height:43px; border-radius:50%; border:3px solid rgba(0,210,255,.17); border-top-color:#00d2ff; border-right-color:rgba(0,210,255,.64); box-sizing:border-box; animation:wrbtv-loading-spin .82s linear infinite; box-shadow:0 0 28px rgba(0,210,255,.12); }
+    .player-loading-status { margin-top:4px; color:#00d2ff; font-size:11px; font-weight:850; letter-spacing:.2em; text-transform:uppercase; }
+    .player-loading-title { max-width:min(78%,720px); color:#f5f7fa; font-size:clamp(14px,1.8vw,21px); font-weight:700; line-height:1.35; text-wrap:balance; }
+    .player-loading-hint { color:rgba(217,228,239,.62); font-size:12px; letter-spacing:.025em; }
+    .player-loading-indicators { display:flex; gap:5px; height:13px; align-items:center; margin-top:1px; }
+    .player-loading-indicators span { width:4px; height:5px; border-radius:5px; background:#00d2ff; animation:wrbtv-loading-bars .9s ease-in-out infinite; }
+    .player-loading-indicators span:nth-child(2) { animation-delay:.12s; }
+    .player-loading-indicators span:nth-child(3) { animation-delay:.24s; }
+    @keyframes wrbtv-loading-spin { to { transform:rotate(360deg); } }
+    @keyframes wrbtv-loading-bars { 0%,100% { height:5px; opacity:.45; } 50% { height:13px; opacity:1; } }
+    @media (prefers-reduced-motion:reduce) { .player-loading-spinner,.player-loading-indicators span { animation:none; } }
+
+    /* Branded splash while an existing account reconnects at startup. */
+    #sessionRestoreSplash { display:none; position:fixed; inset:0; z-index:10000; align-items:center; justify-content:center; flex-direction:column; gap:15px; color:#f4f8fc; text-align:center; background:radial-gradient(ellipse at center,#0c1e2c 0%,#05090f 58%,#020306 100%); }
+    html.wrbtv-session-booting #sessionRestoreSplash { display:flex; }
+    html.wrbtv-session-booting #view-login { visibility:hidden !important; }
+    .session-restore-spinner { width:48px; height:48px; border-radius:50%; border:3px solid rgba(0,210,255,.16); border-top-color:#00d2ff; animation:wrbtv-loading-spin .82s linear infinite; }
+    .session-restore-brand { font-size:24px; font-weight:900; letter-spacing:.14em; }
+    .session-restore-caption { color:rgba(223,233,243,.67); font-size:13px; }
+
     /* CUSTOM CINEMA CONTROLS & FLOATING HEADER */
     .player-floating-header {
       position: absolute;
@@ -3252,6 +3277,7 @@
     </style>
 </head>
 <body class="login-mode">
+  <div id="sessionRestoreSplash" aria-live="polite"><div class="session-restore-spinner" aria-hidden="true"></div><div class="session-restore-brand">WRB-TV</div><div class="session-restore-caption">Reconectando à sua conta...</div></div>
 
   <!-- HEADER -->
   <header>
@@ -3448,6 +3474,15 @@
     <div class="player-container">
       <div class="video-viewport" id="videoViewport">
         <video id="mainVideo" playsinline></video>
+        <div id="playerLoadingOverlay" aria-hidden="true">
+          <div class="player-loading-brand"><span class="player-loading-brand-mark" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor"/></svg></span><span>WRB-TV</span></div>
+          <div class="player-loading-spinner" aria-hidden="true"></div>
+          <div class="player-loading-status">Preparando sua experiência</div>
+          <div id="playerLoadingTitle" class="player-loading-title">Carregando conteúdo</div>
+          <div id="playerLoadingHint" class="player-loading-hint">Conectando ao servidor de mídia...</div>
+          <div class="player-loading-indicators" aria-hidden="true"><span></span><span></span><span></span></div>
+        </div>
+
 
         <!-- TOP FLOATING BAR (CINEMA HEADER) -->
         <div class="player-floating-header visible" id="playerFloatingHeader">
@@ -3805,6 +3840,16 @@
       return normalized ? [normalized] : [];
     }
 
+    // Persist the IPTV session outside WebView localStorage (localhost port changes per launch).
+    function persistSessionToNative(session = state.session) {
+      if (!session?.server || !session?.user || !session?.pass) return;
+      const saved = { server: session.server, serverCode: session.serverCode || null, serverCandidates: session.serverCandidates || [], user: session.user, pass: session.pass };
+      try { if (window.AndroidSession) window.AndroidSession.postMessage(JSON.stringify({ action: 'save', session: saved })); } catch (err) { console.warn('[WRB-TV] Session storage bridge:', err); }
+    }
+    function clearNativeSession() {
+      try { if (window.AndroidSession) window.AndroidSession.postMessage(JSON.stringify({ action: 'clear' })); } catch (_) {}
+    }
+
     // API REQUEST HELPER
     async function apiCall(payload) {
       const request = { ...payload };
@@ -3834,6 +3879,7 @@
           serverCode: state.session.serverCode || null,
           serverCandidates: state.session.serverCandidates
         }));
+        persistSessionToNative(state.session);
       }
 
       return data;
@@ -3879,6 +3925,7 @@
             user,
             pass
           }));
+          persistSessionToNative(state.session);
 
           enterApp();
         } else if (state.mode === 'm3u') {
@@ -3907,6 +3954,7 @@
               user: parsed.user,
               pass: parsed.pass
             }));
+            persistSessionToNative(state.session);
             enterApp();
           } else {
             showToast('Baixando lista M3U (aguarde alguns segundos)...', 'info');
@@ -3989,8 +4037,50 @@
       enterApp();
     }
 
+    // Automatically reconnect to saved credentials when the Android app is reopened.
+    async function restoreSavedSession(sess) {
+      if (!sess?.server || !sess?.user || !sess?.pass) return false;
+      document.documentElement.classList.add('wrbtv-session-booting');
+      state.session = null;
+      $('inpServer').value = sess.serverCode || sess.server;
+      $('inpUser').value = sess.user;
+      $('inpPass').value = sess.pass;
+      const candidates = sess.serverCode
+        ? getServerCandidates(sess.serverCode)
+        : (Array.isArray(sess.serverCandidates) && sess.serverCandidates.length ? sess.serverCandidates.map(normalizeServerUrl).filter(Boolean) : getServerCandidates(sess.server));
+      try {
+        const res = await apiCall({ action: 'login', server: sess.serverCode || sess.server, serverCode: sess.serverCode || null, serverCandidates: candidates, user: sess.user, pass: sess.pass });
+        if (!res.auth) throw new Error(res.error || 'Não foi possível validar o acesso salvo.');
+        state.session = {
+          server: res.server || normalizeServerUrl(sess.server),
+          serverCode: res.serverCode || sess.serverCode || null,
+          serverCandidates: res.serverCandidates || candidates,
+          user: sess.user, pass: sess.pass, info: res.userInfo
+        };
+        state.categories = res.categories || { live: [], movies: [], series: [] };
+        localStorage.setItem('wrbtv_session', JSON.stringify({
+          server: state.session.server, serverCode: state.session.serverCode,
+          serverCandidates: state.session.serverCandidates, user: state.session.user, pass: state.session.pass
+        }));
+        persistSessionToNative(state.session);
+        enterApp();
+        return true;
+      } catch (err) {
+        state.session = null;
+        document.documentElement.classList.remove('wrbtv-session-booting');
+        document.body.classList.remove('app-mode');
+        document.body.classList.add('login-mode');
+        $('view-login').classList.remove('login-hidden');
+        showToast('Não foi possível reconectar agora. Suas credenciais continuam salvas. Verifique a conexão e tente conectar novamente.', 'error');
+        console.warn('[WRB-TV] Reconexão automática:', err.message || err);
+        return false;
+      }
+    }
+
     // ENTER APP INTERFACE
     function enterApp() {
+      document.documentElement.classList.remove('wrbtv-session-booting');
+      persistSessionToNative(state.session);
       document.body.classList.remove('login-mode');
       document.body.classList.add('app-mode');
       $('view-login').classList.add('login-hidden');
@@ -4024,7 +4114,8 @@
       document.body.classList.remove('app-mode');
       document.body.classList.add('login-mode');
       localStorage.removeItem('wrbtv_session');
-      location.reload();
+      clearNativeSession();
+      setTimeout(() => location.reload(), 250);
     };
 
     // NAV TABS (LIVE, MOVIES, SERIES, FAVS)
@@ -4955,12 +5046,30 @@
         user: state.session.user,
         pass: state.session.pass
       }));
+      persistSessionToNative(state.session);
+    }
+
+    function showPlayerLoading(title, hint = 'Conectando ao servidor de mídia...') {
+      const layer = $('playerLoadingOverlay');
+      if (!layer) return;
+      if ($('playerLoadingTitle')) $('playerLoadingTitle').textContent = title || 'Carregando conteúdo';
+      if ($('playerLoadingHint')) $('playerLoadingHint').textContent = hint;
+      layer.classList.add('visible'); layer.setAttribute('aria-hidden', 'false');
+    }
+    function hidePlayerLoading() {
+      const layer = $('playerLoadingOverlay');
+      if (!layer) return;
+      layer.classList.remove('visible'); layer.setAttribute('aria-hidden', 'true');
     }
 
     // CINEMA VIDEO PLAYER ENGINE (COM RETOMADA E HISTÓRICO NETFLIX)
     function playVideo(title, url, fallbackTsUrl, meta = null) {
       const overlay = $('player-overlay');
       const v = $('mainVideo');
+      showPlayerLoading(title, 'Conectando e preparando o vídeo...');
+      v.onplaying = () => hidePlayerLoading();
+      v.onwaiting = () => { if (!v.paused) showPlayerLoading(title, 'Bufferizando conteúdo...'); };
+      v.onstalled = () => { if (!v.paused) showPlayerLoading(title, 'Restabelecendo o fluxo de vídeo...'); };
 
       // Detectar se o player de Ao Vivo já estava em fullscreen antes
       // de trocar de canal para não voltar ao mini player.
@@ -5276,6 +5385,7 @@
       state.isClosingPlayer = true;
       const overlay = $('player-overlay');
       const v = $('mainVideo');
+      hidePlayerLoading();
       // Silenciar imediatamente, antes de qualquer operação de fullscreen assíncrona.
       try { v.pause(); } catch {}
       try {
@@ -5865,29 +5975,21 @@
     window.addEventListener('DOMContentLoaded', async () => {
       syncAppNativeFullscreen();
       await loadDeviceId();
-      // Registra o dispositivo no WRB-TV Business imediatamente, antes do login.
       wrbBusinessHeartbeat();
-      const saved = localStorage.getItem('wrbtv_session');
+      const nativeSaved = window.__WRB_NATIVE_SAVED_SESSION;
+      const saved = nativeSaved ? JSON.stringify(nativeSaved) : localStorage.getItem('wrbtv_session');
       if (saved) {
         try {
           const sess = JSON.parse(saved);
           if (sess.server && sess.user && sess.pass) {
-            $('inpServer').value = sess.serverCode || sess.server;
-            $('inpUser').value = sess.user;
-            $('inpPass').value = sess.pass;
-            state.session = {
-              server: normalizeServerUrl(sess.server),
-              serverCode: sess.serverCode || null,
-              serverCandidates: Array.isArray(sess.serverCandidates) && sess.serverCandidates.length
-                ? sess.serverCandidates.map(normalizeServerUrl).filter(Boolean)
-                : getServerCandidates(sess.serverCode || sess.server),
-              user: sess.user,
-              pass: sess.pass,
-              info: null
-            };
-          }
-        } catch (_) {}
-      }
+            persistSessionToNative(sess);
+            await restoreSavedSession(sess);
+          } else document.documentElement.classList.remove('wrbtv-session-booting');
+        } catch (err) {
+          document.documentElement.classList.remove('wrbtv-session-booting');
+          console.warn('[WRB-TV] Não foi possível restaurar a sessão:', err);
+        }
+      } else document.documentElement.classList.remove('wrbtv-session-booting');
     });
   </script>
 </body>

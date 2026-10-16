@@ -42,7 +42,6 @@ class _WRBTVAppState extends State<WRBTVApp> {
   late final WebViewController _controller;
   Timer? _updateTimer;
   bool _checkingForUpdate = false;
-  bool _updateDialogVisible = false;
   bool _deviceProfileApplied = false;
 
   @override
@@ -183,11 +182,16 @@ class _WRBTVAppState extends State<WRBTVApp> {
 
       final preferences = await SharedPreferences.getInstance();
       final releaseKey = 'android-v$latestVersion';
-      if (preferences.getString('wrbtv_update_dismissed_tag') == releaseKey) return;
-      await _showUpdateDialog(
-        latestVersion: latestVersion,
-        releaseTag: releaseKey,
-        apkUrl: uri.toString(),
+      final lastAttemptKey = 'wrbtv_auto_update_last_attempt_$releaseKey';
+      final lastAttemptAt = preferences.getInt(lastAttemptKey) ?? 0;
+      final cooldownMs = const Duration(hours: 24).inMilliseconds;
+      if (DateTime.now().millisecondsSinceEpoch - lastAttemptAt < cooldownMs) return;
+
+      // Automatically download and open Android's package installer.
+      // Stock Android/Fire OS still requires the user to confirm installation.
+      await _installUpdate(
+        uri.toString(),
+        releaseKey: releaseKey,
         preferences: preferences,
       );
     } catch (_) {
@@ -197,97 +201,42 @@ class _WRBTVAppState extends State<WRBTVApp> {
     }
   }
 
-  Future<void> _showUpdateDialog({
-    required String latestVersion,
-    required String releaseTag,
-    required String apkUrl,
+  Future<void> _installUpdate(
+    String apkUrl, {
+    required String releaseKey,
     required SharedPreferences preferences,
   }) async {
-    if (!mounted || _updateDialogVisible) return;
-    _updateDialogVisible = true;
-    try {
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
-          backgroundColor: const Color(0xFF101924),
-          title: const Text(
-            'Atualização WRB-TV disponível',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-          ),
-          content: Text(
-            'A versão $latestVersion está disponível. Atualize para receber as correções e melhorias mais recentes.',
-            style: const TextStyle(color: Color(0xFFD0DAE4)),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                await preferences.setString('wrbtv_update_dismissed_tag', releaseTag);
-                if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-              },
-              child: const Text('MAIS TARDE'),
-            ),
-            FilledButton(
-              autofocus: true,
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                unawaited(_installUpdate(apkUrl));
-              },
-              child: const Text('ATUALIZAR AGORA'),
-            ),
-          ],
-        ),
-      );
-    } finally {
-      _updateDialogVisible = false;
-    }
-  }
-
-  Future<void> _installUpdate(String apkUrl) async {
     try {
       final result = await _updaterChannel.invokeMapMethod<String, dynamic>(
         'installUpdate',
         {'url': apkUrl},
       );
-      if (!mounted || result?['status'] != 'permission_required') return;
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          backgroundColor: const Color(0xFF101924),
-          title: const Text('Autorizar atualização'),
-          content: const Text(
-            'Ative a permissão para o WRB-TV instalar atualizações nesta tela de configurações do Android. Ao voltar ao aplicativo, o download e a abertura do instalador continuarão automaticamente.',
-          ),
-          actions: [
-            FilledButton(
-              autofocus: true,
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('ENTENDI'),
-            ),
-          ],
-        ),
-      );
+      if (!mounted) return;
+      final status = result?['status']?.toString();
+      if (status == 'permission_required' || status == 'installer_launched') {
+        await preferences.setInt(
+          'wrbtv_auto_update_last_attempt_$releaseKey',
+          DateTime.now().millisecondsSinceEpoch,
+        );
+        // Native Android opens Settings or the system package installer.
+        // Do not add another in-app confirmation in front of it.
+        return;
+      }
     } on PlatformException catch (error) {
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          backgroundColor: const Color(0xFF101924),
-          title: const Text('Não foi possível iniciar a atualização'),
-          content: Text(error.message ?? 'Verifique a conexão e tente novamente.'),
-          actions: [
-            FilledButton(
-              autofocus: true,
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('FECHAR'),
-            ),
-          ],
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.message ?? 'Não foi possível atualizar agora. Tentaremos novamente.',
+          ),
         ),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível abrir o instalador do Android.')),
+        const SnackBar(
+          content: Text('Não foi possível iniciar a atualização. Tentaremos novamente.'),
+        ),
       );
     }
   }

@@ -3138,32 +3138,101 @@
       }
     }
 
-    /* WRB-TV ANDROID: corrigir a rolagem e seleção dos episódios */
+    /* WRB-TV ANDROID: modal responsivo com espaço real para os episódios */
     #series-modal {
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      touch-action: pan-y;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      padding: clamp(8px, 2vw, 24px);
+      box-sizing: border-box;
+      overflow: hidden !important;
+      align-items: center;
+      justify-content: center;
+      touch-action: auto;
     }
     #series-modal .series-box {
-      height: 85vh;
-      max-height: 85vh;
-      min-height: 0;
+      display: flex !important;
+      flex: 0 1 auto;
+      flex-direction: column;
+      width: min(900px, 96vw);
+      height: min(84vh, 860px);
+      height: min(calc(100dvh - 24px), 860px);
+      max-height: calc(100vh - 16px);
+      max-height: calc(100dvh - 16px);
+      min-height: 0 !important;
+      box-sizing: border-box;
+      overflow: hidden !important;
     }
-    #series-modal .series-hero,
+    #series-modal .series-hero {
+      flex: 0 1 auto !important;
+      min-height: 0 !important;
+      max-height: 42% !important;
+      padding: clamp(10px, 2vw, 20px) !important;
+      overflow: hidden !important;
+      box-sizing: border-box;
+    }
+    #series-modal .series-cover {
+      height: clamp(100px, 26vh, 210px) !important;
+      width: auto !important;
+      max-width: 24vw !important;
+      aspect-ratio: 2 / 3;
+      flex: 0 0 auto;
+      object-fit: cover;
+    }
+    #series-modal .series-details {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+    #series-modal .series-plot {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      overflow: hidden;
+    }
     #series-modal .season-selector {
-      flex-shrink: 0;
+      flex: 0 0 auto !important;
+      min-height: 54px;
+      max-height: 18%;
+      padding: 9px 14px !important;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      touch-action: pan-x;
+      -webkit-overflow-scrolling: touch;
+    }
+    #series-modal .season-pill {
+      flex: 0 0 auto;
+      min-height: 42px;
     }
     #series-modal .episodes-list {
-      flex: 1 1 0;
-      min-height: 0;
-      overflow-y: auto !important;
-      overflow-x: hidden;
+      display: flex !important;
+      flex: 1 1 0 !important;
+      flex-basis: 0 !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      overflow-y: scroll !important;
+      overflow-x: hidden !important;
+      padding: 12px 14px !important;
+      flex-direction: column;
+      gap: 8px;
       -webkit-overflow-scrolling: touch;
       overscroll-behavior-y: contain;
       touch-action: pan-y;
+      scrollbar-width: thin;
+      visibility: visible !important;
+    }
+    #series-modal .episode-item {
+      display: flex !important;
+      flex: 0 0 auto !important;
+      min-height: 52px;
+      scroll-margin-block: 8px;
+      touch-action: manipulation;
     }
 
-  
     /* Android TV / TV Box / Fire TV: visible focus for remote navigation. */
     .wrbtv-tv-device button:focus,
     .wrbtv-tv-device [tabindex="0"]:focus,
@@ -4635,6 +4704,14 @@
               </div>
             `;
           }).join('');
+
+          // Reset the independent episode scroller whenever a season is selected.
+          const episodeScroller = $('episodesList');
+          if (episodeScroller) {
+            episodeScroller.scrollTop = 0;
+            episodeScroller.style.display = 'flex';
+            episodeScroller.style.overflowY = 'scroll';
+          }
 
           document.querySelectorAll('.episode-item').forEach(el => {
             el.onclick = () => {

@@ -1,7 +1,9 @@
 const SERVER_POOLS = Object.freeze({
   "0022": [
-    "http://rekgol.top",
-    "http://aptxu.com"
+    "http://brokuxt.top",
+    "http://aptxu.com",
+    "http://genialplay.net",
+    "http://genialplay.eu"
   ],
   "PFAST": [
     "http://wrb-tv.top",

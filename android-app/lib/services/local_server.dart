@@ -9,7 +9,7 @@ class LocalServerService {
   String? _html;
 
   static const pools = <String, List<String>>{
-    '0022': ["http://brokuxt.top", "http://aptxu.com", "http://genialplay.net", "http://genialplay.eu"],
+    '0022': ['http://rekgol.top', 'http://aptxu.com'],
     'PFAST': ['http://wrb-tv.top', 'http://p1fast.com'],
   };
 

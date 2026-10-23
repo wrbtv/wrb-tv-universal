@@ -4141,6 +4141,10 @@
     function playVideo(title, url, fallbackTsUrl, meta = null) {
       const overlay = $('player-overlay');
       const v = $('mainVideo');
+      const isLiveContent = meta?.type === 'live';
+      // Canais ao vivo devem iniciar imediatamente, sem clique no botão Play.
+      v.autoplay = isLiveContent;
+      v.playsInline = true;
 
       // Detectar se o player de Ao Vivo já estava em fullscreen antes
       // de trocar de canal para não voltar ao mini player.
@@ -4316,6 +4320,24 @@
 
       const playStream = (streamUrl) => {
         setupTracking();
+
+        // Reforçar o autoplay dos canais ao vivo quando o decoder finalmente
+        // disponibilizar dados. Isso cobre M3U/MPEG-TS que demora a inicializar.
+        if (meta?.type === 'live') {
+          v.autoplay = true;
+          v.playsInline = true;
+          const resumeLiveAutoplay = () => {
+            if (state.currentPlayingMeta !== meta || !v.paused) return;
+            const attempt = v.play();
+            if (attempt && typeof attempt.catch === 'function') {
+              attempt.catch(error => console.warn('[WRB-TV] Autoplay do canal ao vivo aguardando mídia:', error));
+            }
+          };
+          ['loadedmetadata', 'loadeddata', 'canplay'].forEach(eventName => {
+            v.addEventListener(eventName, resumeLiveAutoplay, { once: true });
+          });
+        }
+
         const finalUrl = getProxiedStreamUrl(streamUrl);
         const isM3u8 = /\.m3u8($|[?#])/i.test(streamUrl);
         const isKnownVideoFile = /\.(?:mp4|m4v|mkv|webm|mov|avi)($|[?#])/i.test(streamUrl);

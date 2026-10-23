@@ -375,27 +375,82 @@ export async function onRequestPost(context) {
     if (b.action === "m3u") {
       const url = String(b.url || "").trim();
       if (!/^https?:\/\//i.test(url)) return Response.json({ error: "URL M3U inválida." }, { status: 400, headers: jsonHeaders });
+
+      // Alguns servidores Xtream só aceitam output=ts ou output=m3u8.
+      // Tentar alternativas ao get.php evita falhas falsas por output=mpegts.
+      const candidates = [url];
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000);
-        const r = await fetch(url, {
-          signal: controller.signal,
-          redirect: "follow",
-          headers: {
-            "user-agent": "IPTVSmartersPro/1.0.0",
-            "accept": "*/*"
+        const original = new URL(url);
+        if (/\/get\.php$/i.test(original.pathname)) {
+          for (const output of ["ts", "m3u8"]) {
+            const candidate = new URL(original.href);
+            candidate.searchParams.set("output", output);
+            candidates.push(candidate.href);
           }
-        });
-        clearTimeout(timeoutId);
-        if (!r.ok) return Response.json({ error: `O servidor respondeu HTTP ${r.status} ao solicitar a playlist.` }, { status: 502, headers: jsonHeaders });
-        const text = await r.text();
-        return Response.json({ text }, { headers: jsonHeaders });
-      } catch (fetchErr) {
-        if (fetchErr.name === "AbortError") {
-          return Response.json({ error: "Tempo esgotado ao baixar a lista M3U." }, { status: 504, headers: jsonHeaders });
+          const withoutOutput = new URL(original.href);
+          withoutOutput.searchParams.delete("output");
+          candidates.push(withoutOutput.href);
         }
-        throw fetchErr;
+      } catch {}
+
+      const uniqueCandidates = [...new Set(candidates)];
+      const playlistAgents = [
+        "IPTVSmartersPro/1.0.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "VLC/3.0.18 LibVLC/3.0.18"
+      ];
+      let lastStatus = 0;
+      let lastError = null;
+
+      for (const candidateUrl of uniqueCandidates) {
+        for (let agentIndex = 0; agentIndex < playlistAgents.length; agentIndex++) {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          let response;
+          try {
+            response = await fetch(candidateUrl, {
+              signal: controller.signal,
+              redirect: "follow",
+              headers: {
+                "user-agent": playlistAgents[agentIndex],
+                "accept": "*/*",
+                "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+              }
+            });
+          } catch (fetchErr) {
+            lastError = fetchErr;
+            clearTimeout(timeoutId);
+            if (fetchErr.name === "AbortError") continue;
+            continue;
+          }
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const text = await response.text();
+            if (/#EXTM3U/i.test(text) || /#EXTINF/i.test(text)) {
+              return Response.json({ text }, { headers: jsonHeaders });
+            }
+            lastError = new Error("A resposta não contém uma playlist M3U válida.");
+            lastStatus = response.status;
+            break;
+          }
+
+          lastStatus = response.status;
+          // Alternar User-Agent apenas para bloqueio explícito. Para 404,
+          // testar logo a próxima variante de output do mesmo get.php.
+          if (response.status === 403 || response.status === 429) continue;
+          break;
+        }
+        if (lastStatus && ![403, 429].includes(lastStatus)) continue;
       }
+
+      if (lastError?.name === "AbortError" && !lastStatus) {
+        return Response.json({ error: "Tempo esgotado ao baixar a lista M3U." }, { status: 504, headers: jsonHeaders });
+      }
+      if (lastStatus) {
+        return Response.json({ error: `A playlist falhou após testar formatos compatíveis (HTTP ${lastStatus}). Verifique a URL e os dados de acesso.` }, { status: 502, headers: jsonHeaders });
+      }
+      return Response.json({ error: "Não foi possível acessar o servidor da lista M3U. Verifique a conexão e tente novamente." }, { status: 502, headers: jsonHeaders });
     }
 
     return Response.json({ error: "Ação inválida." }, { status: 400, headers: jsonHeaders });

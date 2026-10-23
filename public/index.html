@@ -3006,7 +3006,8 @@
     async function apiCall(payload) {
       const request = { ...payload };
 
-      if (request.action !== 'login' && state.session?.server) {
+      // A conexão por URL M3U é independente da sessão Xtream salva. Não anexar servidor antigo.
+      if (request.action !== 'login' && request.action !== 'm3u' && state.session?.server) {
         request.server = state.session.server;
         request.serverCandidates = state.session.serverCandidates || getServerCandidates(state.session.serverCode || state.session.server);
         if (state.session.serverCode) request.serverCode = state.session.serverCode;

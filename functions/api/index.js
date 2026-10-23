@@ -123,7 +123,9 @@ export async function onRequestPost(context) {
 
     // Para 0022/PFAST, usar o Node.js hospedado no Cloudflare Container.
     // O restante do Windows permanece no mesmo contrato /api e no mesmo fluxo.
-    if (isRemoteCode(requestedCode)) {
+    // URLs M3U fornecidas pelo usuário devem ser buscadas diretamente; não roteá-las
+    // pelo gateway de um login Xtream anterior (0022/PFAST).
+    if (b.action !== "m3u" && isRemoteCode(requestedCode)) {
       try {
         const remote = await callCloudGateway({
           ...b,

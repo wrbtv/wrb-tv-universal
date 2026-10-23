@@ -3082,9 +3082,21 @@
           const rawUrl = $('inpM3uUrl').value.trim();
           if (!rawUrl) throw new Error('Informe a URL da lista M3U.');
 
-          // Intelligent detection: If user pastes an Xtream M3U link, connect via lightning-fast API!
+          // Links que declaram uma playlist M3U (ex.: /get.php?...&type=m3u_plus&output=mpegts)
+          // devem ser baixados como M3U. Não exigir player_api.php nesse fluxo.
           const parsed = parseIptvUrl(rawUrl);
-          if (parsed.isXtream) {
+          let explicitM3U = false;
+          try {
+            const playlistUrl = new URL(rawUrl);
+            const pathname = playlistUrl.pathname.toLowerCase();
+            const typeParam = (playlistUrl.searchParams.get('type') || '').toLowerCase();
+            const outputParam = (playlistUrl.searchParams.get('output') || '').toLowerCase();
+            explicitM3U =
+              /\/get\.php$/i.test(pathname) ||
+              /^m3u(?:_plus)?$/i.test(typeParam) ||
+              ['mpegts', 'ts', 'hls', 'm3u8'].includes(outputParam);
+          } catch {}
+          if (parsed.isXtream && !explicitM3U) {
             showToast('⚡ Link Xtream Codes detectado! Conectando com velocidade máxima...', 'info');
             const res = await apiCall({ action: 'login', server: parsed.server, user: parsed.user, pass: parsed.pass });
             if (!res.auth) throw new Error(res.error || 'Credenciais inválidas no link.');
@@ -4305,8 +4317,16 @@
       const playStream = (streamUrl) => {
         setupTracking();
         const finalUrl = getProxiedStreamUrl(streamUrl);
-        const isM3u8 = /\.m3u8($|\?)/i.test(streamUrl);
-        const isTs = /\.ts($|\?)/i.test(streamUrl);
+        const isM3u8 = /\.m3u8($|[?#])/i.test(streamUrl);
+        const isKnownVideoFile = /\.(?:mp4|m4v|mkv|webm|mov|avi)($|[?#])/i.test(streamUrl);
+        // Links M3U de canais ao vivo podem não ter extensão, mesmo quando
+        // output=mpegts. Nesses casos, escolher MPEG-TS em vez do player nativo.
+        const isM3uLiveTransportStream =
+          state.session?.type === 'm3u' &&
+          meta?.type === 'live' &&
+          !isM3u8 &&
+          !isKnownVideoFile;
+        const isTs = /\.ts($|[?#])/i.test(streamUrl) || isM3uLiveTransportStream;
 
         if (isM3u8 && window.Hls && Hls.isSupported()) {
           state.hlsInstance = new Hls({
